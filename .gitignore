@@ -1,0 +1,49 @@
+# Local planning, research and generated documentation
+/docs/
+
+# Node.js dependencies, build output and reports
+node_modules/
+dist/
+coverage/
+.nyc_output/
+*.tsbuildinfo
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.key
+*.pem
+*.pfx
+*.p12
+
+# Runtime data and temporary artifacts
+uploads/
+.data/
+postgres-data/
+tmp/
+temp/
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Generated LaTeX artifacts and intermediate exports
+*.aux
+*.toc
+*.lof
+*.lot
+*.out
+*.xdv
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.zip

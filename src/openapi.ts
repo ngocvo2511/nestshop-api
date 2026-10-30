@@ -8,7 +8,7 @@ export function configureOpenApi(app: INestApplication): void {
     .setTitle('E-commerce Backend API')
     .setVersion('1.0.0')
     .setDescription(
-      'HTTP and PostgreSQL foundation; feature APIs are added in subsequent commits. See Swagger for the implemented API contract.',
+      'Account APIs with JWT and rotating refresh sessions. Catalog, checkout and payments are added separately.',
     )
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' })
     .build();

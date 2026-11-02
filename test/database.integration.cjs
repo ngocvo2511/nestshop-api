@@ -3,6 +3,7 @@ const { Buffer } = require('node:buffer');
 const { TextEncoder } = require('node:util');
 const { describe } = require('@jest/globals');
 const { registerAccountCases } = require('./accounts.cases.cjs');
+const { registerProductCases } = require('./products.cases.cjs');
 const { createDataSource } = require('../dist/database/data-source');
 const { databaseConfig } = require('../dist/config/database.config');
 const { startBuiltApplication } = require('./helpers/app-process.cjs');
@@ -1159,3 +1160,4 @@ describe('Day 4 auth API on real PostgreSQL', () => {
 });
 
 registerAccountCases(() => source, appDatabase);
+registerProductCases(() => source, appDatabase);

@@ -7,6 +7,7 @@ NestJS e-commerce backend with TypeORM and PostgreSQL.
 - Health, validated configuration, safe HTTP handling and PostgreSQL migrations.
 - Accounts, JWT authentication and rotating refresh sessions.
 - Profiles and audited role assignment.
+- Product catalog browsing and administration.
 
 ## Development
 

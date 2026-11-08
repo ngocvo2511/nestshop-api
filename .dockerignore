@@ -1,0 +1,11 @@
+**
+!Dockerfile
+!package.json
+!package-lock.json
+!.npmrc
+!tsconfig.json
+!tsconfig.build.json
+!nest-cli.json
+!src/
+!src/**
+src/**/*.spec.ts

@@ -57,6 +57,23 @@ npm run test:integration
 
 Integration tests require Docker with Linux containers and use an isolated PostgreSQL 18.6 Compose project with generated credentials. Their runner removes only its disposable resources. Smoke checks use the compiled application with database access disabled in test mode; they are separate from database acceptance.
 
+## Docker Compose
+
+Docker with Linux containers and Compose v2.40+ is required. Copy the example and fill independent generated database/JWT secrets in the ignored `.env.compose`.
+
+```powershell
+Copy-Item .env.compose.example .env.compose
+docker compose --env-file .env.compose build api
+docker compose --env-file .env.compose up -d --wait
+docker compose --env-file .env.compose exec -T api npm run seed
+```
+
+The API is published on `http://127.0.0.1:3300`; PostgreSQL is private to the Compose network. A healthy database and successful one-shot migration gate API startup. The application runs as the `node` user, with persistent database and upload volumes. Use a fresh `-p <project-name>` if the default project already exists.
+
+`docker compose --env-file .env.compose down` retains data. Do not add `--volumes` to routine shutdown. Changing the environment password does not rotate credentials in an existing database volume.
+
+`npm run verify:compose` verifies image build, readiness, repeated migration/seed/admin commands and database/upload persistence using its own disposable project.
+
 ## Remaining scope
 
 Order reads, cancellation/stock release, fulfillment, VNPay payments/IPN and expiration are not yet complete. Keep `VNPAY_MODE=unconfigured` and merchant/callback values blank. Checkout currently reserves stock without an automatic release workflow; use disposable development data while exercising the incomplete order lifecycle.

@@ -60,7 +60,7 @@ function launch(port, overrides = {}) {
 }
 
 test(
-  'built app starts without VNPay, serves HTTP and exposes no future order/payment handlers',
+  'built app starts without VNPay and protects own-order reads',
   { timeout: 45000 },
   async () => {
     const port = await freePort();
@@ -92,8 +92,10 @@ test(
         body.meta.correlationId,
         response.headers.get('x-correlation-id'),
       );
-      for (const route of ['/api/v1/orders', '/api/v1/payments/vnpay/ipn']) {
-        assert.equal((await fetch(base + route)).status, 404);
+      assert.equal((await fetch(base + '/api/v1/orders')).status, 401);
+      for (const route of ['/api/v1/payments/vnpay/ipn']) {
+        const response = await fetch(base + route);
+        assert.equal(response.status, 404);
       }
       assert.match(app.output(), /"vnpay":"unconfigured"/);
       assert.ok(!app.output().includes(app.env.JWT_ACCESS_SECRET));

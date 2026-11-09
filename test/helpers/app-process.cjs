@@ -32,7 +32,17 @@ async function startBuiltApplication(database, lifetimes = {}) {
     ORDER_RESERVATION_SECONDS: String(
       lifetimes.orderReservationSeconds ?? 3600,
     ),
+    PAYMENT_ATTEMPT_SECONDS: String(lifetimes.paymentAttemptSeconds ?? 1200),
     VNPAY_MODE: 'unconfigured',
+    ...(lifetimes.vnpay
+      ? {
+          VNPAY_MODE: 'sandbox',
+          VNPAY_TMN_CODE: 'FIXT0001',
+          VNPAY_HASH_SECRET: lifetimes.vnpay.hashSecret,
+          VNPAY_RETURN_URL: 'https://merchant.invalid/return',
+          VNPAY_IPN_URL: 'https://merchant.invalid/ipn',
+        }
+      : {}),
   };
   const child = spawn(
     process.execPath,

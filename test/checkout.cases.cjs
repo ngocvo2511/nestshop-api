@@ -627,12 +627,381 @@ function registerCheckoutCases(getSource, appDatabase) {
       );
     });
 
-    test('Swagger documents CUSTOMER checkout with generated VND lines and no payment/read-order endpoints', async () => {
+    async function reserved() {
+      const ids = [await product(), await product()].sort();
+      const result = await checkout(ids.map((id) => item(id, 2)));
+      expect(result.status).toBe(201);
+      const id = result.body.data.id;
+      await source.query(
+        "INSERT INTO payments (id,order_id,provider_reference,amount_vnd,payment_url,expires_at) VALUES ($1,$2,$3,40,$4,clock_timestamp()+interval '20 minutes')",
+        [
+          randomUUID(),
+          id,
+          randomUUID(),
+          'https://sensitive.invalid/signed-secret',
+        ],
+      );
+      return { id, ids };
+    }
+    const cancel = (id, actor = 'A') =>
+      request('POST', `/orders/${id}/cancel`, {}, actor);
+    async function waitOrders(n) {
+      const deadline = Date.now() + 12000;
+      while (Date.now() < deadline) {
+        const rows = await source.query(
+          "SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%orders%' AND query LIKE '%FOR UPDATE%'",
+        );
+        if (rows[0].n >= n) return;
+        await delay(15);
+      }
+      throw new Error('Order lock waiters missing');
+    }
+    test('Day9 ownership, safe summaries, pagination, filters and USER history', async () => {
+      const { id, ids } = await reserved();
+      for (const path of [`/orders/${id}`, `/orders/${id}/history`]) {
+        expect((await request('GET', path, undefined, 'B')).status).toBe(404);
+        expect(
+          (await request('GET', path.replace(id, randomUUID()), undefined))
+            .status,
+        ).toBe(404);
+        for (const actor of [null, 'STAFF', 'ADMIN'])
+          expect((await request('GET', path, undefined, actor)).status).toBe(
+            actor ? 403 : 401,
+          );
+      }
+      expect((await cancel(id, 'B')).status).toBe(404);
+      for (const actor of [null, 'STAFF', 'ADMIN'])
+        expect((await cancel(id, actor)).status).toBe(actor ? 403 : 401);
+      const detail = await request('GET', `/orders/${id}`, undefined);
+      expect(detail.cache).toBe('no-store');
+      expect(detail.body.data.items).toHaveLength(2);
+      expect(detail.body.data.paymentSummary.latestAttempt.status).toBe(
+        'PENDING',
+      );
+      const list = await request(
+        'GET',
+        '/orders?limit=100&sort=createdAt&status=PENDING_PAYMENT',
+        undefined,
+      );
+      expect(list.body.data.items.some((o) => o.id === id)).toBe(true);
+      expect(JSON.stringify([detail.body, list.body])).not.toMatch(
+        /signed-secret|paymentUrl|providerTransactionReference|responseCode/,
+      );
+      const foreignList = await request(
+        'GET',
+        '/orders?limit=100',
+        undefined,
+        'B',
+      );
+      expect(foreignList.body.data.items.some((o) => o.id === id)).toBe(false);
+      for (const query of [
+        'limit=0',
+        'offset=-1',
+        'status=INVALID',
+        'sort=id',
+        'userId=' + actors.B.id,
+        'limit=1&limit=2',
+      ])
+        expect(
+          (await request('GET', '/orders?' + query, undefined)).status,
+        ).toBe(400);
+      expect(
+        (await request('POST', `/orders/${id}/cancel`, { status: 'CANCELLED' }))
+          .status,
+      ).toBe(400);
+      expect((await cancel(id)).body.data.changed).toBe(true);
+      expect((await cancel(id)).body.data.changed).toBe(false);
+      const history = await request(
+        'GET',
+        `/orders/${id}/history?offset=1&limit=1`,
+        undefined,
+      );
+      expect(history.body.data.total).toBe(2);
+      expect(history.body.data.items[0]).toMatchObject({
+        actorType: 'USER',
+        actorUserId: actors.A.id,
+        previousStatus: 'PENDING_PAYMENT',
+        newStatus: 'CANCELLED',
+      });
+      for (const pid of ids) expect((await row(pid)).stock_available).toBe(10);
+      expect((await orderState(id)).payments[0].status).toBe('EXPIRED');
+    });
+    test.each([
+      'PAID',
+      'EXPIRED',
+      'PROCESSING',
+      'SHIPPED',
+      'COMPLETED',
+      'overdue',
+    ])('Day9 rejects %s with no effects', async (state) => {
+      const { id } = await reserved();
+      if (state === 'overdue')
+        await source.query(
+          "UPDATE orders SET created_at=clock_timestamp()-interval '2 hours',reservation_expires_at=clock_timestamp()-interval '1 hour' WHERE id=$1",
+          [id],
+        );
+      else
+        await source.query('UPDATE orders SET status=$2 WHERE id=$1', [
+          id,
+          state,
+        ]);
+      const before = await orderState(id);
+      const result = await cancel(id);
+      expect(result.status).toBe(409);
+      expect(result.body.error.code).toBe('ORDER_NOT_ELIGIBLE');
+      expect(await orderState(id)).toEqual(before);
+    });
+    test('Day9 concurrent cancellation queues on independent connections and releases once', async () => {
+      const { id, ids } = await reserved();
+      const runner = source.createQueryRunner();
+      await runner.connect();
+      await runner.startTransaction();
+      await runner.query('SELECT id FROM orders WHERE id=$1 FOR UPDATE', [id]);
+      const pending = [];
+      try {
+        pending.push(cancel(id));
+        await waitOrders(1);
+        pending.push(cancel(id));
+        await waitOrders(2);
+        await runner.commitTransaction();
+        const results = await Promise.all(pending);
+        expect(results.map((r) => r.status)).toEqual([200, 200]);
+        expect(results.map((r) => r.body.data.changed).sort()).toEqual([
+          false,
+          true,
+        ]);
+        expect((await orderState(id)).history).toHaveLength(2);
+        for (const pid of ids)
+          expect((await row(pid)).stock_available).toBe(10);
+      } finally {
+        if (runner.isTransactionActive) await runner.rollbackTransaction();
+        await runner.release();
+        await Promise.allSettled(pending);
+      }
+    });
+    test.each(['status', 'deadline'])(
+      'Day9 rechecks %s after order lock wait',
+      async (kind) => {
+        const { id } = await reserved();
+        const runner = source.createQueryRunner();
+        await runner.connect();
+        await runner.startTransaction();
+        await runner.query('SELECT id FROM orders WHERE id=$1 FOR UPDATE', [
+          id,
+        ]);
+        const pending = cancel(id);
+        try {
+          await waitOrders(1);
+          if (kind === 'status')
+            await runner.query("UPDATE orders SET status='PAID' WHERE id=$1", [
+              id,
+            ]);
+          else
+            await runner.query(
+              "UPDATE orders SET created_at=clock_timestamp()-interval '2 hours',reservation_expires_at=clock_timestamp()-interval '1 hour' WHERE id=$1",
+              [id],
+            );
+          await runner.commitTransaction();
+          expect((await pending).status).toBe(409);
+          expect((await orderState(id)).history).toHaveLength(1);
+        } finally {
+          if (runner.isTransactionActive) await runner.rollbackTransaction();
+          await runner.release();
+          await Promise.allSettled([pending]);
+        }
+      },
+    );
+    test('Day9 holds order and attempts before sorted product release locks', async () => {
+      const { id, ids } = await reserved();
+      const blocker = await block(ids[1]);
+      const pending = cancel(id);
+      const probe = source.createQueryRunner();
+      try {
+        await waitProducts(1);
+        await probe.connect();
+        const payment = (
+          await source.query('SELECT id FROM payments WHERE order_id=$1', [id])
+        )[0].id;
+        for (const [table, key] of [
+          ['orders', id],
+          ['payments', payment],
+          ['products', ids[0]],
+        ]) {
+          await probe.startTransaction();
+          await expect(
+            probe.query(
+              `SELECT id FROM ${table} WHERE id=$1 FOR UPDATE NOWAIT`,
+              [key],
+            ),
+          ).rejects.toMatchObject({ driverError: { code: '55P03' } });
+          await probe.rollbackTransaction();
+        }
+        await blocker.commitTransaction();
+        expect((await pending).status).toBe(200);
+      } finally {
+        if (probe.isTransactionActive) await probe.rollbackTransaction();
+        await probe.release();
+        if (blocker.isTransactionActive) await blocker.rollbackTransaction();
+        await blocker.release();
+        await Promise.allSettled([pending]);
+      }
+    });
+
+    test.each(['overflow', 'stock', 'history', 'payment'])(
+      'Day9 %s fault rolls back order/payment/partial release/history',
+      async (stage) => {
+        const { id, ids } = await reserved();
+        if (stage === 'overflow')
+          await source.query(
+            'UPDATE products SET stock_available=2147483647 WHERE id=$1',
+            [ids[1]],
+          );
+        const before = await orderState(id);
+        const stocks = await Promise.all(ids.map(row));
+        const name = 'cancel_fault_' + randomBytes(8).toString('hex');
+        const table =
+          stage === 'stock'
+            ? 'products'
+            : stage === 'payment'
+              ? 'payments'
+              : 'order_status_history';
+        const check =
+          stage === 'stock'
+            ? `id <> '${ids[1]}'::uuid OR stock_available=8`
+            : stage === 'payment'
+              ? `order_id <> '${id}'::uuid OR status='PENDING'`
+              : `order_id <> '${id}'::uuid OR new_status <> 'CANCELLED'`;
+        if (stage !== 'overflow')
+          await source.query(
+            `ALTER TABLE ${table} ADD CONSTRAINT ${name} CHECK (${check}) NOT VALID`,
+          );
+        try {
+          const result = await cancel(id);
+          expect(result.status).toBe(stage === 'overflow' ? 409 : 500);
+          expect(result.body.error.code).toBe(
+            stage === 'overflow' ? 'STOCK_RANGE_EXCEEDED' : 'INTERNAL_ERROR',
+          );
+          expect(JSON.stringify(result.body)).not.toContain(name);
+          expect(await orderState(id)).toEqual(before);
+          expect(await Promise.all(ids.map(row))).toEqual(stocks);
+        } finally {
+          if (stage !== 'overflow')
+            await source.query(`ALTER TABLE ${table} DROP CONSTRAINT ${name}`);
+        }
+      },
+    );
+
+    test.each(['release-first', 'adjustment-first'])(
+      'M3 %s cancellation and audited adjustment preserve both stock changes',
+      async (sequence) => {
+        const { id, ids } = await reserved();
+        const target = ids[0];
+        const release = () => cancel(id);
+        const adjust = () =>
+          request(
+            'POST',
+            `/products/${target}/stock-adjustments`,
+            { quantityDelta: 4, reason: 'M3 concurrent release' },
+            'ADMIN',
+          );
+        const results = await twoQueued(
+          target,
+          sequence === 'release-first' ? release : adjust,
+          sequence === 'release-first' ? adjust : release,
+        );
+        expect(results.map((r) => r.status)).toEqual(
+          sequence === 'release-first' ? [200, 201] : [201, 200],
+        );
+        expect((await row(target)).stock_available).toBe(14);
+        expect((await row(ids[1])).stock_available).toBe(10);
+        const audits = await source.query(
+          'SELECT * FROM inventory_adjustment_audit WHERE product_id=$1',
+          [target],
+        );
+        expect(audits).toHaveLength(1);
+        expect(audits[0]).toMatchObject({
+          previous_stock: sequence === 'release-first' ? 10 : 8,
+          new_stock: sequence === 'release-first' ? 14 : 12,
+          quantity_delta: 4,
+        });
+        const state = await orderState(id);
+        expect(state.order.status).toBe('CANCELLED');
+        expect(state.history).toHaveLength(2);
+        expect(state.payments[0].status).toBe('EXPIRED');
+        expect((await cancel(id)).body.data.changed).toBe(false);
+        expect((await row(target)).stock_available).toBe(14);
+      },
+    );
+    test('M3 adjustment consuming the last unit before queued checkout prevents oversell and partial order', async () => {
+      const id = await product('10', 1);
+      const before = await counts();
+      const results = await twoQueued(
+        id,
+        () =>
+          request(
+            'POST',
+            `/products/${id}/stock-adjustments`,
+            { quantityDelta: -1, reason: 'M3 last-unit adjustment' },
+            'ADMIN',
+          ),
+        () => checkout([item(id)]),
+      );
+      expect(results.map((r) => r.status)).toEqual([201, 409]);
+      expect(results[1].body.error.code).toBe('INSUFFICIENT_STOCK');
+      expect((await row(id)).stock_available).toBe(0);
+      expect(await counts()).toEqual(before);
+      const audits = await source.query(
+        'SELECT * FROM inventory_adjustment_audit WHERE product_id=$1',
+        [id],
+      );
+      expect(audits).toHaveLength(1);
+      expect(audits[0]).toMatchObject({
+        previous_stock: 1,
+        new_stock: 0,
+        quantity_delta: -1,
+      });
+    });
+    test.each(['release-first', 'checkout-first'])(
+      'M3 %s release versus last-unit checkout leaves no lost stock or partial records',
+      async (sequence) => {
+        const pid = await product('10', 1);
+        const original = await checkout([item(pid)]);
+        expect(original.status).toBe(201);
+        const id = original.body.data.id;
+        const before = await counts('B');
+        const release = () => cancel(id);
+        const buy = () => checkout([item(pid)], 'B');
+        const results = await twoQueued(
+          pid,
+          sequence === 'release-first' ? release : buy,
+          sequence === 'release-first' ? buy : release,
+        );
+        const won = sequence === 'release-first';
+        expect(results.map((r) => r.status)).toEqual(
+          won ? [200, 201] : [409, 200],
+        );
+        expect((await row(pid)).stock_available).toBe(won ? 0 : 1);
+        const after = await counts('B');
+        expect(after).toEqual({
+          orders: before.orders + (won ? 1 : 0),
+          items: before.items + (won ? 1 : 0),
+          history: before.history + (won ? 1 : 0),
+          payments: before.payments,
+        });
+        const state = await orderState(id);
+        expect(state.order.status).toBe('CANCELLED');
+        expect(state.history).toHaveLength(2);
+        expect((await cancel(id)).body.data.changed).toBe(false);
+        expect((await row(pid)).stock_available).toBe(won ? 0 : 1);
+      },
+    );
+
+    test('Swagger documents own orders and checkout without future payment initiation', async () => {
       const spec = await (await fetch(app.base + '/api/docs-json')).json();
       expect(spec.paths['/api/v1/orders'].post.security).toEqual([
         { bearer: [] },
       ]);
-      expect(spec.paths['/api/v1/orders'].get).toBeUndefined();
+      expect(spec.paths['/api/v1/orders'].get).toBeDefined();
       expect(
         spec.paths['/api/v1/orders/{id}/payment-attempts'],
       ).toBeUndefined();

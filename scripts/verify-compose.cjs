@@ -118,6 +118,10 @@ async function main() {
       '/api/v1/orders/{id}',
       '/api/v1/orders/{id}/history',
       '/api/v1/orders/{id}/cancel',
+      '/api/v1/staff/orders',
+      '/api/v1/staff/orders/{id}',
+      '/api/v1/staff/orders/{id}/history',
+      '/api/v1/staff/orders/{id}/status',
     ];
     if (
       Object.keys(spec.paths).sort().join(',') !==

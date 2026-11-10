@@ -13,6 +13,11 @@ import { paymentSummary } from '../payments/payment-summary';
 import { Payment } from '../payments/entities/payment.entity';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { PaginationQueryDto } from '../../common/http/dto/pagination-query.dto';
+import {
+  AdvanceOrderDto,
+  FulfillmentQueryDto,
+  fulfillmentStatuses,
+} from './dto/fulfillment.dto';
 import { calculateCheckout } from './checkout-calculation';
 
 @Injectable()
@@ -137,6 +142,100 @@ export class OrdersService {
     return transaction(this.source, async (manager) => {
       await this.owned(manager, userId, id);
       return this.historyData(manager, id, query);
+    });
+  }
+
+  private async fulfillmentOrder(
+    manager: EntityManager,
+    id: string,
+    lock = false,
+  ) {
+    const query = manager
+      .createQueryBuilder(Order, 'o')
+      .where('o.id=:id', { id });
+    if (lock) query.setLock('pessimistic_write');
+    const order = await query.getOne();
+    // Scope is checked on the locked/reloaded row, including after another transition commits.
+    if (
+      !order ||
+      !fulfillmentStatuses.some((status) => status === order.status)
+    )
+      throw new ApiError('NOT_FOUND');
+    return order;
+  }
+
+  async fulfillmentQueue(query: FulfillmentQueryDto) {
+    return transaction(this.source, async (manager) => {
+      const [orders, total] = await manager.findAndCount(Order, {
+        where: { status: query.status },
+        order: { createdAt: 'ASC', id: 'ASC' },
+        skip: query.offset,
+        take: query.limit,
+      });
+      const items = [];
+      for (const order of orders)
+        items.push(await this.summary(manager, order));
+      return { items, total, offset: query.offset, limit: query.limit };
+    });
+  }
+
+  async fulfillmentDetail(id: string) {
+    return transaction(this.source, async (manager) => {
+      const order = await this.fulfillmentOrder(manager, id);
+      return {
+        ...(await this.detailData(manager, order)),
+        customerId: order.userId,
+      };
+    });
+  }
+
+  async fulfillmentHistory(id: string, query: PaginationQueryDto) {
+    return transaction(this.source, async (manager) => {
+      await this.fulfillmentOrder(manager, id);
+      return this.historyData(manager, id, query);
+    });
+  }
+
+  async advanceStatus(actorId: string, id: string, dto: AdvanceOrderDto) {
+    return transaction(this.source, async (manager) => {
+      const order = await this.fulfillmentOrder(manager, id, true);
+      await manager
+        .createQueryBuilder(Payment, 'p')
+        .where('p.orderId=:id', { id })
+        .orderBy('p.id', 'ASC')
+        .setLock('pessimistic_write')
+        .getMany();
+      const next: Record<string, string | undefined> = {
+        PAID: 'PROCESSING',
+        PROCESSING: 'SHIPPED',
+        SHIPPED: 'COMPLETED',
+      };
+      if (next[order.status] !== dto.status)
+        throw new ApiError('INVALID_STATE_TRANSITION');
+      const previousStatus = order.status;
+      const now = await databaseNow(manager);
+      const changed = await manager
+        .createQueryBuilder()
+        .update(Order)
+        .set({ status: dto.status, updatedAt: now })
+        .where('id=:id AND status=:previousStatus', { id, previousStatus })
+        .execute();
+      if (changed.affected !== 1)
+        throw new ApiError('INVALID_STATE_TRANSITION');
+      await manager.insert(
+        OrderStatusHistory,
+        manager.create(OrderStatusHistory, {
+          orderId: id,
+          previousStatus,
+          newStatus: dto.status,
+          actorUserId: actorId,
+          note: dto.note ?? null,
+          createdAt: now,
+        }),
+      );
+      order.status = dto.status;
+      order.updatedAt = now;
+      return this.summary(manager, order);
     });
   }
 

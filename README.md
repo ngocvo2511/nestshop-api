@@ -12,6 +12,7 @@ NestJS e-commerce backend with TypeORM and PostgreSQL.
 - Atomic checkout with immutable snapshots and stock reservations.
 - Validated JPEG/PNG/WebP upload and safe product-image reads.
 - Customer-owned order list/detail/history and atomic cancellation with one-time stock release.
+- Shared STAFF/ADMIN fulfillment queue, detail/history and audited forward-only status transitions.
 
 ## Development
 
@@ -77,7 +78,7 @@ The API is published on `http://127.0.0.1:3300`; PostgreSQL is private to the Co
 
 ## Remaining scope
 
-Staff fulfillment, VNPay payment initiation/callbacks/reconciliation, expiration/recovery workers and real Sandbox acceptance remain open. Cancellation releases an eligible reservation once; automatic expiry release is not implemented. Use disposable development data for the incomplete lifecycle.
+VNPay payment initiation/callbacks/reconciliation, expiration/recovery workers and real Sandbox acceptance remain open. Cancellation releases an eligible reservation once; automatic expiry release is not implemented. Use disposable development data for the incomplete lifecycle.
 
 ## Contributions
 

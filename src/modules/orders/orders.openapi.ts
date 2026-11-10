@@ -149,3 +149,9 @@ export const historySchema = envelope(
     },
   }),
 );
+
+export const orderSummarySchema = envelope(summary);
+const staffDetail = structuredClone(detail);
+staffDetail.required!.push('customerId');
+staffDetail.properties!.customerId = { type: 'string', format: 'uuid' };
+export const staffOrderDetailSchema = envelope(staffDetail);

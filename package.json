@@ -1,0 +1,60 @@
+{
+  "name": "ecommerce-backend-api",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=24.22.2 <25",
+    "npm": ">=11 <12"
+  },
+  "packageManager": "npm@11.12.1",
+  "scripts": {
+    "dev": "nest start --watch",
+    "start": "node dist/main.js",
+    "build": "nest build",
+    "lint": "eslint src test",
+    "format": "prettier --write src test scripts *.json *.cjs *.mjs .prettierrc .env.example",
+    "format:check": "prettier --check src test scripts *.json *.cjs *.mjs .prettierrc .env.example",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
+    "test:cov": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage --runInBand",
+    "test:smoke": "node --test test/scaffold.smoke.cjs",
+    "test:integration": "npm run build && node scripts/run-integration.cjs",
+    "migration:run": "node dist/database/cli.js migrate",
+    "migration:revert": "node dist/database/cli.js revert",
+    "migration:status": "node dist/database/cli.js status",
+    "seed": "node dist/database/cli.js seed",
+    "admin:setup": "node dist/database/cli.js admin"
+  },
+  "dependencies": {
+    "@nestjs/common": "12.3.2",
+    "@nestjs/config": "12.0.1",
+    "@nestjs/core": "12.3.2",
+    "@nestjs/platform-express": "12.3.2",
+    "@nestjs/swagger": "12.1.0",
+    "class-transformer": "0.5.1",
+    "class-validator": "0.15.1",
+    "express": "5.3.0",
+    "jose": "6.2.15",
+    "multer": "2.5.0",
+    "pg": "8.23.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "sharp": "0.35.5",
+    "typeorm": "1.1.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@nestjs/cli": "12.0.11",
+    "@nestjs/testing": "12.3.2",
+    "@types/express": "5.0.6",
+    "@types/jest": "30.0.0",
+    "@types/multer": "2.3.0",
+    "@types/node": "24.19.2",
+    "eslint": "10.14.0",
+    "eslint-config-prettier": "10.1.8",
+    "jest": "30.5.2",
+    "prettier": "3.9.10",
+    "ts-jest": "29.4.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.1"
+  }
+}

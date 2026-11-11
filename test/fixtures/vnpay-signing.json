@@ -1,0 +1,32 @@
+{
+  "provenance": "Frozen offline Python urllib.parse.quote plus stdlib hmac/hashlib SHA512; never import the TypeScript adapter. Synthetic key only, not a merchant credential. Generated 2026-11-11.",
+  "key": "unit-fixture-key-not-a-merchant-secret",
+  "full": {
+    "fields": {
+      "vnp_Version": "2.1.0",
+      "vnp_Command": "pay",
+      "vnp_TmnCode": "FIXT0001",
+      "vnp_Amount": "1000000",
+      "vnp_CurrCode": "VND",
+      "vnp_TxnRef": "0123456789abcdef0123456789abcdef",
+      "vnp_OrderInfo": "Thanh toan don hang 0123456789abcdef0123456789abcdef",
+      "vnp_OrderType": "other",
+      "vnp_ReturnUrl": "https://merchant.invalid/return",
+      "vnp_IpAddr": "127.0.0.1",
+      "vnp_Locale": "vn",
+      "vnp_CreateDate": "20261111235959",
+      "vnp_ExpireDate": "20261112001959"
+    },
+    "canonical": "vnp_Amount=1000000&vnp_Command=pay&vnp_CreateDate=20261111235959&vnp_CurrCode=VND&vnp_ExpireDate=20261112001959&vnp_IpAddr=127.0.0.1&vnp_Locale=vn&vnp_OrderInfo=Thanh+toan+don+hang+0123456789abcdef0123456789abcdef&vnp_OrderType=other&vnp_ReturnUrl=https%3A%2F%2Fmerchant.invalid%2Freturn&vnp_TmnCode=FIXT0001&vnp_TxnRef=0123456789abcdef0123456789abcdef&vnp_Version=2.1.0",
+    "signature": "8c618e4ac03270991de27d479f9d4d4735bb6355ae89d57f8731eb343d561a694bc5bbde3ddc07b8d42e11c2114f5f63f15f8f6ca77c1951a237eccce90795c1"
+  },
+  "encoding": {
+    "fields": {
+      "z": "",
+      "vnp_OrderInfo": "Tieng Viet + % !*'()~ /?&= thanh toan \u0111\u1ed3ng",
+      "vnp_ReturnUrl": "https://merchant.invalid/return?a=one two&b=+%25"
+    },
+    "canonical": "vnp_OrderInfo=Tieng+Viet+%2B+%25+!*'()~+%2F%3F%26%3D+thanh+toan+%C4%91%E1%BB%93ng&vnp_ReturnUrl=https%3A%2F%2Fmerchant.invalid%2Freturn%3Fa%3Done+two%26b%3D%2B%2525&z=",
+    "signature": "4d1bf6cb537571162d62f80be8b31096e080e1c63057601645d41fbdddf994f8ba62dda8b2128bce168cd0076c993160491dca3c1437d0221a8aa933779614d3"
+  }
+}

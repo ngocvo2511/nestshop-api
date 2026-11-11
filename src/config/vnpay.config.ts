@@ -15,7 +15,13 @@ export function vnpayConfig(env: Environment) {
   );
   const common = {
     apiVersion,
-    timezone: 'Asia/Ho_Chi_Minh',
+    timezone: choice(
+      env,
+      'VNPAY_TIMEZONE',
+      ['Asia/Ho_Chi_Minh'] as const,
+      'Asia/Ho_Chi_Minh',
+    ),
+    locale: choice(env, 'VNPAY_LOCALE', ['vn', 'en'] as const, 'vn'),
     paymentUrl: 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html',
   } as const;
   if (mode === 'unconfigured') {
@@ -36,13 +42,18 @@ export function vnpayConfig(env: Environment) {
     throw new Error(
       'Invalid environment: VNPAY_TMN_CODE must contain 8 alphanumeric characters',
     );
+  const returnUrl = url(env, 'VNPAY_RETURN_URL', true);
+  if (returnUrl.length > 255)
+    throw new Error(
+      'Invalid environment: VNPAY_RETURN_URL exceeds 255 characters',
+    );
   return {
     ...common,
     mode,
     status: 'sandbox-configured' as const,
     tmnCode,
     hashSecret: secret(env, 'VNPAY_HASH_SECRET'),
-    returnUrl: url(env, 'VNPAY_RETURN_URL', true),
+    returnUrl,
     ipnUrl: url(env, 'VNPAY_IPN_URL'),
   };
 }

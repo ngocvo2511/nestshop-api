@@ -996,15 +996,15 @@ function registerCheckoutCases(getSource, appDatabase) {
       },
     );
 
-    test('Swagger documents own orders and checkout without future payment initiation', async () => {
+    test('Swagger documents CUSTOMER checkout, generated VND lines and owner payment initiation', async () => {
       const spec = await (await fetch(app.base + '/api/docs-json')).json();
       expect(spec.paths['/api/v1/orders'].post.security).toEqual([
         { bearer: [] },
       ]);
       expect(spec.paths['/api/v1/orders'].get).toBeDefined();
       expect(
-        spec.paths['/api/v1/orders/{id}/payment-attempts'],
-      ).toBeUndefined();
+        spec.paths['/api/v1/orders/{id}/payment-attempts'].post,
+      ).toBeDefined();
       expect(
         spec.components.schemas.CheckoutDto.properties.items,
       ).toMatchObject({ minItems: 1, maxItems: 100 });

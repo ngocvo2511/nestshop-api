@@ -33,6 +33,10 @@ async function startBuiltApplication(database, lifetimes = {}) {
       lifetimes.orderReservationSeconds ?? 3600,
     ),
     PAYMENT_ATTEMPT_SECONDS: String(lifetimes.paymentAttemptSeconds ?? 1200),
+    EXPIRY_SCAN_INTERVAL_SECONDS: String(
+      lifetimes.scanIntervalSeconds ?? 86400,
+    ),
+    EXPIRY_SCAN_BATCH_SIZE: String(lifetimes.scanBatchSize ?? 100),
     VNPAY_MODE: 'unconfigured',
     ...(lifetimes.vnpay
       ? {

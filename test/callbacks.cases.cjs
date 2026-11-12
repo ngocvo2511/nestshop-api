@@ -214,6 +214,306 @@ function registerCallbackCases(getSource, appDatabase) {
         await Promise.allSettled(pending);
       }
     }
+    function expiryServices(batchSize = 1000) {
+      const { ConfigService } = require('@nestjs/config');
+      const {
+        OrdersService,
+      } = require('../dist/modules/orders/orders.service');
+      const {
+        ExpirationScanner,
+      } = require('../dist/modules/expiration/expiration.scanner');
+      const config = new ConfigService({
+        expiry: { batchSize, scanIntervalSeconds: 86400 },
+      });
+      const orders = new OrdersService(source, config);
+      return { orders, scanner: new ExpirationScanner(source, config, orders) };
+    }
+    async function overdue(f) {
+      await source.query(
+        "UPDATE orders SET created_at=clock_timestamp()-interval '2 hours',reservation_expires_at=clock_timestamp()-interval '1 minute' WHERE id=$1",
+        [f.id],
+      );
+    }
+    function assertExpired(after) {
+      expect(after.order.status).toBe('EXPIRED');
+      expect(after.payments[0].status).toBe('EXPIRED');
+      expect(after.payments[0].terminal_at).toBeInstanceOf(Date);
+      expect(after.stock.stock_available).toBe(10);
+      expect(after.history).toHaveLength(2);
+      expect(after.history[1]).toMatchObject({
+        new_status: 'EXPIRED',
+        actor_user_id: null,
+      });
+    }
+    test('Day13 repeated/overlapping scanners serialize real transactions and release/history once', async () => {
+      const f = await ready();
+      await overdue(f);
+      const { scanner, orders } = expiryServices();
+      const runner = await block('orders', f.id);
+      const a = scanner.scan();
+      const b = scanner.scan();
+      expect(b).toBe(a);
+      const other = orders.expire(f.id);
+      try {
+        await waitLocks('orders', 2);
+        await runner.commitTransaction();
+        await Promise.all([a, b, other]);
+      } finally {
+        if (runner.isTransactionActive) await runner.rollbackTransaction();
+        await runner.release();
+        await Promise.allSettled([a, b, other]);
+        await scanner.beforeApplicationShutdown();
+      }
+      expect(await orders.expire(f.id)).toBe(false);
+      assertExpired(await state(f));
+    });
+    test('Day13 unresolved attempt target retains reservation and blocks replacement after scan', async () => {
+      const f = await ready();
+      await source.query(
+        "UPDATE payments SET created_at=clock_timestamp()-interval '30 minutes',expires_at=clock_timestamp()-interval '10 minutes' WHERE id=$1",
+        [f.paymentId],
+      );
+      const before = await state(f);
+      await expiryServices().scanner.scan();
+      expect(await state(f)).toEqual(before);
+      expect(
+        (await request('POST', `/orders/${f.id}/payment-attempts`, {})).body
+          .error.code,
+      ).toBe('PAYMENT_UNRESOLVED');
+    });
+    test('expiry protects stock when a pending-order fixture already has a successful payment', async () => {
+      const f = await ready();
+      await overdue(f);
+      await source.query(
+        "UPDATE payments SET status='SUCCESS',terminal_at=clock_timestamp() WHERE id=$1",
+        [f.paymentId],
+      );
+      const before = await state(f);
+      const { scanner, orders } = expiryServices();
+      const output = [];
+      const {
+        SafeJsonLogger,
+      } = require('../dist/common/logging/safe-json.logger');
+      scanner.logger = new SafeJsonLogger((line) =>
+        output.push(JSON.parse(line)),
+      );
+      try {
+        await expect(orders.expire(f.id)).rejects.toMatchObject({
+          code: 'ORDER_NOT_ELIGIBLE',
+        });
+        await scanner.scan();
+        expect(await state(f)).toEqual(before);
+        expect(output).toContainEqual(
+          expect.objectContaining({
+            event: 'expiry.failed',
+            orderId: f.id,
+            diagnostic: 'ORDER_NOT_ELIGIBLE',
+          }),
+        );
+      } finally {
+        // Remove the deliberate inconsistent fixture so later recovery scans are isolated.
+        await source.query("UPDATE payments SET status='FAILED' WHERE id=$1", [
+          f.paymentId,
+        ]);
+        await orders.expire(f.id);
+      }
+    });
+    test('Day13 startup recovers downtime and configured periodic scan recovers later orders', async () => {
+      const f = await ready();
+      await overdue(f);
+      const recovery = await startBuiltApplication(appDatabase(), {
+        scanIntervalSeconds: 1,
+        scanBatchSize: 1000,
+      });
+      try {
+        assertExpired(await state(f));
+        const g = await ready();
+        await overdue(g);
+        const end = Date.now() + 8000;
+        while (
+          (await state(g)).order.status === 'PENDING_PAYMENT' &&
+          Date.now() < end
+        )
+          await delay(25);
+        assertExpired(await state(g));
+      } finally {
+        await recovery.close();
+      }
+    });
+    test('Day13 expiry history fault rolls back release/payment and candidate failure permits later recovery', async () => {
+      const f = await ready(),
+        g = await ready();
+      await overdue(f);
+      await overdue(g);
+      const before = await state(f);
+      const constraint = 'expiry_fault_' + randomBytes(8).toString('hex');
+      await source.query(
+        `ALTER TABLE order_status_history ADD CONSTRAINT ${constraint} CHECK (order_id <> '${f.id}'::uuid OR new_status <> 'EXPIRED')`,
+      );
+      const { scanner, orders } = expiryServices();
+      const output = [];
+      const {
+        SafeJsonLogger,
+      } = require('../dist/common/logging/safe-json.logger');
+      scanner.logger = new SafeJsonLogger((line) =>
+        output.push(JSON.parse(line)),
+      );
+      try {
+        await expect(orders.expire(f.id)).rejects.toBeDefined();
+        expect(await state(f)).toEqual(before);
+        await scanner.scan();
+        assertExpired(await state(g));
+        expect(await state(f)).toEqual(before);
+        expect(output).toContainEqual(
+          expect.objectContaining({
+            event: 'expiry.failed',
+            orderId: f.id,
+            diagnostic: '23514',
+          }),
+        );
+        expect(JSON.stringify(output)).not.toContain(f.url);
+      } finally {
+        await source.query(
+          `ALTER TABLE order_status_history DROP CONSTRAINT ${constraint}`,
+        );
+      }
+      await scanner.scan();
+      await scanner.scan();
+      assertExpired(await state(f));
+    });
+    test.each(['ipn-first', 'expiry-first'])(
+      'Day13 overdue %s expiry race keeps late callback non-settling',
+      async (kind) => {
+        const f = await ready();
+        await overdue(f);
+        const { orders } = expiryServices();
+        const settle = () => ipn(signed(f.fields));
+        const expire = () => orders.expire(f.id);
+        await queued(
+          f.id,
+          kind === 'ipn-first' ? settle : expire,
+          kind === 'ipn-first' ? expire : settle,
+        );
+        assertExpired(await state(f));
+        expect((await receipts(f.paymentId)).map((r) => r.outcome)).toEqual([
+          'LATE',
+        ]);
+      },
+    );
+    test('Day13 settlement winner makes stale expiry candidate harmless', async () => {
+      const f = await ready();
+      await queued(
+        f.id,
+        () => ipn(signed(f.fields)),
+        () => expiryServices().orders.expire(f.id),
+      );
+      const after = await state(f);
+      expect(after.order.status).toBe('PAID');
+      expect(after.payments[0].status).toBe('SUCCESS');
+      expect(after.stock.stock_available).toBe(8);
+      expect(after.history).toHaveLength(2);
+      expect(
+        (await receipts(f.paymentId)).filter((r) => r.outcome === 'SETTLED'),
+      ).toHaveLength(1);
+    });
+    test.each(['cancel-first', 'expiry-first'])(
+      'Day13 overdue %s cancellation race releases only once',
+      async (kind) => {
+        const f = await ready();
+        await overdue(f);
+        const cancel = () => request('POST', `/orders/${f.id}/cancel`, {});
+        const expire = () => expiryServices().orders.expire(f.id);
+        const results = await queued(
+          f.id,
+          kind === 'cancel-first' ? cancel : expire,
+          kind === 'cancel-first' ? expire : cancel,
+        );
+        expect(results[kind === 'cancel-first' ? 0 : 1].body.error.code).toBe(
+          'ORDER_NOT_ELIGIBLE',
+        );
+        assertExpired(await state(f));
+      },
+    );
+    test('Day13 cancellation winner makes stale expiry candidate harmless', async () => {
+      const f = await ready();
+      await queued(
+        f.id,
+        () => request('POST', `/orders/${f.id}/cancel`, {}),
+        () => expiryServices().orders.expire(f.id),
+      );
+      const after = await state(f);
+      expect(after.order.status).toBe('CANCELLED');
+      expect(after.stock.stock_available).toBe(10);
+      expect(after.history).toHaveLength(2);
+      expect(after.payments[0].status).toBe('EXPIRED');
+    });
+    test('Day13 candidate rechecks current deadline after order-lock wait', async () => {
+      const f = await ready();
+      await overdue(f);
+      const runner = await block('orders', f.id);
+      const { scanner } = expiryServices();
+      const pending = scanner.scan();
+      try {
+        await waitLocks('orders', 1);
+        await runner.query(
+          "UPDATE orders SET reservation_expires_at=clock_timestamp()+interval '1 hour' WHERE id=$1",
+          [f.id],
+        );
+        await runner.commitTransaction();
+        await pending;
+        const after = await state(f);
+        expect(after.order.status).toBe('PENDING_PAYMENT');
+        expect(after.stock.stock_available).toBe(8);
+        expect(after.history).toHaveLength(1);
+      } finally {
+        if (runner.isTransactionActive) await runner.rollbackTransaction();
+        await runner.release();
+        await pending;
+      }
+    });
+    test.each(['adjust-first', 'release-first'])(
+      'Day13 %s adjustment-versus-release has no lost stock update',
+      async (kind) => {
+        const f = await ready();
+        await overdue(f);
+        const runner = await block('products', f.pid);
+        const {
+          InventoryService,
+        } = require('../dist/modules/inventory/inventory.service');
+        const adjust = () =>
+          new InventoryService(source).adjust(actors.ADMIN.id, f.pid, {
+            quantityDelta: 3,
+            reason: 'Expiry race',
+          });
+        const release = () => expiryServices().orders.expire(f.id);
+        const tasks = [];
+        try {
+          tasks.push(kind === 'adjust-first' ? adjust() : release());
+          await waitLocks('products', 1);
+          tasks.push(kind === 'adjust-first' ? release() : adjust());
+          await waitLocks('products', 2);
+          await runner.commitTransaction();
+          await Promise.all(tasks);
+          const after = await state(f);
+          expect(after.order.status).toBe('EXPIRED');
+          expect(after.stock.stock_available).toBe(13);
+          expect(after.history).toHaveLength(2);
+          const audit = await source.query(
+            'SELECT * FROM inventory_adjustment_audit WHERE product_id=$1',
+            [f.pid],
+          );
+          expect(audit).toHaveLength(1);
+          expect(audit[0].previous_stock).toBe(
+            kind === 'adjust-first' ? 8 : 10,
+          );
+        } finally {
+          if (runner.isTransactionActive) await runner.rollbackTransaction();
+          await runner.release();
+          await Promise.allSettled(tasks);
+        }
+      },
+    );
+
     test('valid public IPN atomically settles without JWT/currency/optional fields or a second stock deduction', async () => {
       const f = await ready();
       const before = await state(f);

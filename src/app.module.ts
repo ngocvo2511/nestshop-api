@@ -1,3 +1,4 @@
+import { ExpirationModule } from './modules/expiration/expiration.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { validateEnvironment } from './config/configuration';
@@ -26,6 +27,7 @@ import { OrdersModule } from './modules/orders/orders.module';
     InventoryModule,
     OrdersModule,
     PaymentsModule,
+    ExpirationModule,
   ],
 })
 export class AppModule {}

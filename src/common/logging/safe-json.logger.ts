@@ -2,6 +2,25 @@ import { LoggerService } from '@nestjs/common';
 
 type Sink = (line: string) => void;
 
+const expiryDiagnosticCodes = new Set([
+  '23514',
+  '23503',
+  '23505',
+  '22003',
+  '40P01',
+  '40001',
+  '55P03',
+  '57014',
+  '57P01',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'STOCK_RANGE_EXCEEDED',
+  'ORDER_NOT_ELIGIBLE',
+  'SERVICE_UNAVAILABLE',
+  'INTERNAL_ERROR',
+]);
+
 /** Framework messages/optional arguments may contain arbitrary exceptions or secrets: discard them. */
 export class SafeJsonLogger implements LoggerService {
   constructor(
@@ -81,6 +100,31 @@ export class SafeJsonLogger implements LoggerService {
         productId,
         correlationId,
         stage,
+      }),
+    );
+  }
+
+  expiryFailed(
+    stage: 'candidates' | 'order',
+    orderId: string | undefined,
+    error: unknown,
+  ): void {
+    const value = error as {
+      code?: unknown;
+      driverError?: { code?: unknown };
+    } | null;
+    const code = value?.driverError?.code ?? value?.code;
+    this.sink(
+      JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: 'error',
+        event: 'expiry.failed',
+        stage,
+        orderId,
+        diagnostic:
+          typeof code === 'string' && expiryDiagnosticCodes.has(code)
+            ? code
+            : 'UNEXPECTED',
       }),
     );
   }

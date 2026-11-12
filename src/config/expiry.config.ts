@@ -10,6 +10,12 @@ export function expiryConfig(env: Environment) {
   return {
     orderReservationSeconds,
     paymentAttemptSeconds,
-    scanIntervalSeconds: integer(env, 'EXPIRY_SCAN_INTERVAL_SECONDS', '60'),
+    batchSize: integer(env, 'EXPIRY_SCAN_BATCH_SIZE', '100', 1000),
+    scanIntervalSeconds: integer(
+      env,
+      'EXPIRY_SCAN_INTERVAL_SECONDS',
+      '60',
+      86400,
+    ),
   };
 }

@@ -86,9 +86,15 @@ Keep `VNPAY_MODE=unconfigured` unless using assigned Sandbox settings. Configure
 
 `GET /api/v1/payments/vnpay/ipn` verifies the original signed query and commits applicable payment/order/history/receipt changes before returning its plain provider acknowledgement. It never deducts stock a second time. Browser `/return` reports a minimal nonauthoritative signed outcome; settlement happens only through IPN. ADMIN reconciliation endpoints expose safe canonical payment metadata and receipts without signed URLs or credentials.
 
+## Expiration and recovery
+
+Deploy one API instance. An in-process scanner runs one bounded batch before HTTP readiness, then every `EXPIRY_SCAN_INTERVAL_SECONDS` (default 60, range 1-86400). `EXPIRY_SCAN_BATCH_SIZE` defaults to 100 (range 1-1000). Each tick rotates a UUID cursor; after reaching the end it wraps on the next tick. Startup backlogs larger than one batch drain over subsequent ticks. Candidate failure is isolated and logged as `expiry.failed` with stage/order ID/allowlisted diagnostic; retries occur on the next cursor cycle. Scans in the same process share one promise. Shutdown stops scheduling and waits for the active operation before closing PostgreSQL. No distributed scheduler/infrastructure is included.
+
+Order expiry and cancellation use one reservation termination operation, with order then attempts by ID then products by ID locks, current eligibility recheck, conditional transition, pending-attempt expiry, SYSTEM history for expiry, and stock restoration in one transaction. Overflow aborts everything for investigation. Settled orders keep their consumed stock. Attempt-only expiry is disabled because provider finality is unverified: passing the 20-minute target keeps PENDING and blocks replacement without releasing stock.
+
 ## Remaining scope
 
-Expiration/recovery workers, verified real Sandbox delivery/finality/reuse, and final coverage/performance/CI acceptance remain open. Cancellation can release an eligible reservation once; automatic release for expired reservations is not implemented. Deterministic signatures and PostgreSQL tests do not establish real provider acceptance. Use disposable development data while exercising the incomplete expiration workflow.
+Genuine Sandbox callback delivery/ACK/retry, safe URL reuse, expiry/finality and final coverage/performance/CI acceptance remain open. Local fixtures and PostgreSQL race tests establish implementation evidence; they do not establish genuine provider acceptance.
 
 ## Contributions
 

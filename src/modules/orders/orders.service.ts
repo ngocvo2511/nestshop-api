@@ -244,73 +244,109 @@ export class OrdersService {
       const order = await this.owned(manager, userId, id, true);
       if (order.status === 'CANCELLED')
         return { order: await this.summary(manager, order), changed: false };
-      await manager
-        .createQueryBuilder(Payment, 'p')
-        .where('p.orderId=:id', { id })
-        .orderBy('p.id', 'ASC')
+      await this.endReservation(manager, order, 'CANCELLED', userId);
+      return { order: await this.summary(manager, order), changed: true };
+    });
+  }
+
+  // Caller holds the order lock. All termination paths share payment/product locks and release.
+  private async endReservation(
+    manager: EntityManager,
+    order: Order,
+    status: 'CANCELLED' | 'EXPIRED',
+    actorUserId: string | null,
+  ) {
+    const id = order.id;
+    const attempts = await manager
+      .createQueryBuilder(Payment, 'p')
+      .where('p.orderId=:id', { id })
+      .orderBy('p.id', 'ASC')
+      .setLock('pessimistic_write')
+      .getMany();
+    if (attempts.some((p) => p.status === 'SUCCESS'))
+      throw new ApiError('ORDER_NOT_ELIGIBLE');
+    const lines = await manager.find(OrderItem, {
+      where: { orderId: id },
+      order: { productId: 'ASC' },
+    });
+    const products: Product[] = [];
+    for (const line of lines) {
+      const product = await manager
+        .createQueryBuilder(Product, 'p')
+        .where('p.id=:id', { id: line.productId })
         .setLock('pessimistic_write')
-        .getMany();
-      const lines = await manager.find(OrderItem, {
-        where: { orderId: id },
-        order: { productId: 'ASC' },
-      });
-      const products: Product[] = [];
-      for (const line of lines) {
-        const product = await manager
-          .createQueryBuilder(Product, 'p')
-          .where('p.id=:id', { id: line.productId })
-          .setLock('pessimistic_write')
-          .getOne();
-        if (!product) throw new ApiError('INTERNAL_ERROR');
-        products.push(product);
-      }
-      // Wall clock after every potentially blocking lock, not transaction-start time.
-      const now = await databaseNow(manager);
-      if (
-        order.status !== 'PENDING_PAYMENT' ||
-        now >= order.reservationExpiresAt
-      )
-        throw new ApiError('ORDER_NOT_ELIGIBLE');
-      const changed = await manager
-        .createQueryBuilder()
-        .update(Order)
-        .set({ status: 'CANCELLED', updatedAt: now })
-        .where('id=:id AND status=:status AND reservation_expires_at > :now', {
+        .getOne();
+      if (!product) throw new ApiError('INTERNAL_ERROR');
+      products.push(product);
+    }
+    // Wall clock after every potentially blocking lock, not transaction-start time.
+    const now = await databaseNow(manager);
+    if (
+      order.status !== 'PENDING_PAYMENT' ||
+      (status === 'CANCELLED'
+        ? now >= order.reservationExpiresAt
+        : now < order.reservationExpiresAt)
+    )
+      throw new ApiError('ORDER_NOT_ELIGIBLE');
+    const changed = await manager
+      .createQueryBuilder()
+      .update(Order)
+      .set({ status, updatedAt: now })
+      .where(
+        `id=:id AND status=:status AND reservation_expires_at ${status === 'CANCELLED' ? '>' : '<='} :now`,
+        {
           id,
           status: 'PENDING_PAYMENT',
           now,
-        })
-        .execute();
-      if (changed.affected !== 1) throw new ApiError('ORDER_NOT_ELIGIBLE');
-      await manager
-        .createQueryBuilder()
-        .update(Payment)
-        .set({ status: 'EXPIRED', terminalAt: now })
-        .where('order_id=:id AND status=:status', { id, status: 'PENDING' })
-        .execute();
-      for (const [index, line] of lines.entries()) {
-        const stock =
-          BigInt(products[index].stockAvailable) + BigInt(line.quantity);
-        if (stock > 2147483647n) throw new ApiError('STOCK_RANGE_EXCEEDED');
-        await manager.update(Product, line.productId, {
-          stockAvailable: Number(stock),
-          updatedAt: now,
-        });
-      }
-      await manager.insert(
-        OrderStatusHistory,
-        manager.create(OrderStatusHistory, {
-          orderId: id,
-          previousStatus: 'PENDING_PAYMENT',
-          newStatus: 'CANCELLED',
-          actorUserId: userId,
-          note: null,
-          createdAt: now,
-        }),
-      );
-      order.status = 'CANCELLED';
-      order.updatedAt = now;
-      return { order: await this.summary(manager, order), changed: true };
+        },
+      )
+      .execute();
+    if (changed.affected !== 1) throw new ApiError('ORDER_NOT_ELIGIBLE');
+    await manager
+      .createQueryBuilder()
+      .update(Payment)
+      .set({ status: 'EXPIRED', terminalAt: now })
+      .where('order_id=:id AND status=:status', { id, status: 'PENDING' })
+      .execute();
+    for (const [index, line] of lines.entries()) {
+      const stock =
+        BigInt(products[index].stockAvailable) + BigInt(line.quantity);
+      if (stock > 2147483647n) throw new ApiError('STOCK_RANGE_EXCEEDED');
+      await manager.update(Product, line.productId, {
+        stockAvailable: Number(stock),
+        updatedAt: now,
+      });
+    }
+    await manager.insert(
+      OrderStatusHistory,
+      manager.create(OrderStatusHistory, {
+        orderId: id,
+        previousStatus: 'PENDING_PAYMENT',
+        newStatus: status,
+        actorUserId,
+        note: null,
+        createdAt: now,
+      }),
+    );
+    order.status = status;
+    order.updatedAt = now;
+  }
+
+  async expire(id: string) {
+    return transaction(this.source, async (manager) => {
+      const order = await manager
+        .createQueryBuilder(Order, 'o')
+        .where('o.id=:id', { id })
+        .setLock('pessimistic_write')
+        .getOne();
+      if (
+        !order ||
+        order.status !== 'PENDING_PAYMENT' ||
+        (await databaseNow(manager)) < order.reservationExpiresAt
+      )
+        return false;
+      await this.endReservation(manager, order, 'EXPIRED', null);
+      return true;
     });
   }
 

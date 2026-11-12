@@ -8,7 +8,7 @@ export function configureOpenApi(app: INestApplication): void {
     .setTitle('E-commerce Backend API')
     .setVersion('1.0.0')
     .setDescription(
-      'Accounts, catalog, audited inventory and customer-owned order reads, history and atomic cancellation with one-time stock release. Staff fulfillment, payments and expiration remain future work.',
+      'Customer-owned orders/cancellation and shared STAFF/ADMIN fulfillment with audited forward-only transitions. Payments and expiration remain future work.',
     )
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' })
     .build();

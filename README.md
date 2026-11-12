@@ -11,6 +11,7 @@ NestJS e-commerce backend with TypeORM and PostgreSQL.
 - Audited manual inventory adjustments.
 - Atomic checkout with immutable snapshots and stock reservations.
 - Validated JPEG/PNG/WebP upload and safe product-image reads.
+- Customer-owned order list/detail/history and atomic cancellation with one-time stock release.
 
 ## Development
 
@@ -42,7 +43,7 @@ Money uses integer VND decimal strings at API boundaries and BigInt arithmetic. 
 
 ## Initial administrator
 
-Set `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` through the local process environment, then run `npm run admin:setup` after build/migration. Passwords must contain 12–128 characters without surrounding whitespace or control characters. Setup never promotes an existing non-admin or overwrites an existing administrator. Clear the setup variables afterward.
+Set `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` through the local process environment, then run `npm run admin:setup` after build/migration. Passwords must contain 12â€“128 characters without surrounding whitespace or control characters. Setup never promotes an existing non-admin or overwrites an existing administrator. Clear the setup variables afterward.
 
 ## Checks
 
@@ -76,8 +77,8 @@ The API is published on `http://127.0.0.1:3300`; PostgreSQL is private to the Co
 
 ## Remaining scope
 
-Order reads, cancellation/stock release, fulfillment, VNPay payments/IPN and expiration are not yet complete. Keep `VNPAY_MODE=unconfigured` and merchant/callback values blank. Checkout currently reserves stock without an automatic release workflow; use disposable development data while exercising the incomplete order lifecycle.
+Staff fulfillment, VNPay payment initiation/callbacks/reconciliation, expiration/recovery workers and real Sandbox acceptance remain open. Cancellation releases an eligible reservation once; automatic expiry release is not implemented. Use disposable development data for the incomplete lifecycle.
 
 ## Contributions
 
-Use one branch per feature, for example `feat/product-catalog`, and Conventional Commit messages such as `feat(auth): rotate refresh tokens atomically`. Use the [PR template](.github/pull_request_template.md). Dependent PRs are stacked; merge repository setup, foundation, accounts/auth, catalog, images, inventory, checkout, then Docker. Preserve ancestry with merge commits, or restack dependents after squash/rebase merges.
+Use one branch per feature, for example `feat/product-catalog`, and Conventional Commit messages such as `feat(auth): rotate refresh tokens atomically`. Use the [PR template](.github/pull_request_template.md). All PRs target `main`. If a feature depends on another open PR, merge that prerequisite first using Create a merge commit; GitHub then removes its changes from the dependent diff. After squash/rebase merges, restack dependent branches before continuing.

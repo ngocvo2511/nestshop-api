@@ -115,6 +115,9 @@ async function main() {
       '/api/v1/products/{id}/image',
       '/api/v1/products/{id}/stock-adjustments',
       '/api/v1/orders',
+      '/api/v1/orders/{id}',
+      '/api/v1/orders/{id}/history',
+      '/api/v1/orders/{id}/cancel',
     ];
     if (
       Object.keys(spec.paths).sort().join(',') !==

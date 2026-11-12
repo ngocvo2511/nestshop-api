@@ -73,3 +73,79 @@ export const checkoutSchema: SchemaObject = {
     },
   },
 };
+
+const attempt: SchemaObject = {
+  type: 'object',
+  nullable: true,
+  additionalProperties: false,
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    provider: { type: 'string', enum: ['VNPAY'] },
+    providerReference: { type: 'string' },
+    status: {
+      type: 'string',
+      enum: ['PENDING', 'SUCCESS', 'FAILED', 'EXPIRED'],
+    },
+    amountVnd: money,
+    currency: { type: 'string', enum: ['VND'] },
+    createdAt: { type: 'string', format: 'date-time' },
+    expiresAt: { type: 'string', format: 'date-time' },
+    terminalAt: { type: 'string', format: 'date-time', nullable: true },
+  },
+};
+const detail = structuredClone(checkoutSchema.properties!.data) as SchemaObject;
+detail.properties!.status = {
+  type: 'string',
+  enum: [
+    'PENDING_PAYMENT',
+    'PAID',
+    'PROCESSING',
+    'SHIPPED',
+    'COMPLETED',
+    'CANCELLED',
+    'EXPIRED',
+  ],
+};
+detail.properties!.paymentSummary = {
+  type: 'object',
+  properties: { latestAttempt: attempt, successfulAttempt: attempt },
+};
+const summary = structuredClone(detail);
+delete summary.properties!.items;
+delete summary.properties!.shipping;
+summary.required = summary.required!.filter(
+  (k) => k !== 'items' && k !== 'shipping',
+);
+const envelope = (data: SchemaObject): SchemaObject => ({
+  ...checkoutSchema,
+  properties: { ...checkoutSchema.properties, data },
+});
+const page = (items: SchemaObject): SchemaObject => ({
+  type: 'object',
+  properties: {
+    items: { type: 'array', items },
+    offset: { type: 'integer' },
+    limit: { type: 'integer' },
+    total: { type: 'integer' },
+  },
+});
+export const orderDetailSchema = envelope(detail);
+export const orderListSchema = envelope(page(summary));
+export const cancellationSchema = envelope({
+  type: 'object',
+  properties: { order: summary, changed: { type: 'boolean' } },
+});
+export const historySchema = envelope(
+  page({
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      previousStatus: { type: 'string', nullable: true },
+      newStatus: { type: 'string' },
+      actorType: { type: 'string', enum: ['USER', 'SYSTEM'] },
+      actorUserId: { type: 'string', format: 'uuid', nullable: true },
+      note: { type: 'string', nullable: true },
+      createdAt: { type: 'string', format: 'date-time' },
+    },
+  }),
+);

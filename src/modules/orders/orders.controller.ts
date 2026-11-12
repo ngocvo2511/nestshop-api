@@ -1,5 +1,9 @@
 import {
   Body,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  HttpCode,
   Controller,
   Header,
   Post,
@@ -21,7 +25,15 @@ import {
 import { Roles, RolesGuard } from '../auth/roles.guard';
 import { CheckoutDto } from './dto/checkout.dto';
 import { OrdersService } from './orders.service';
-import { checkoutSchema } from './orders.openapi';
+import { OrderQueryDto } from './dto/order-query.dto';
+import { PaginationQueryDto } from '../../common/http/dto/pagination-query.dto';
+import {
+  checkoutSchema,
+  orderDetailSchema,
+  orderListSchema,
+  cancellationSchema,
+  historySchema,
+} from './orders.openapi';
 
 @Controller('orders')
 @ApiTags('orders')
@@ -30,6 +42,85 @@ import { checkoutSchema } from './orders.openapi';
 @Roles('CUSTOMER')
 export class OrdersController {
   constructor(private readonly orders: OrdersService) {}
+  @Get()
+  @ApiResponse({ status: 200, schema: orderListSchema })
+  @ApiResponse({ status: 401, description: 'UNAUTHORIZED' })
+  @ApiResponse({ status: 403, description: 'CUSTOMER only' })
+  @ApiResponse({ status: 404, description: 'Missing or foreign order' })
+  @ApiResponse({ status: 400, description: 'VALIDATION_FAILED' })
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'List own orders',
+    description:
+      'Own records only; offset0..1000000, limit1..100 default20. Optional canonical status; sort createdAt/-createdAt default descending, matching ID tie-break. Safe payment summaries only.',
+  })
+  list(@Req() req: AuthenticatedRequest, @Query() query: OrderQueryDto) {
+    return this.orders.list(req.identity!.sub, query);
+  }
+
+  @Get(':id')
+  @ApiResponse({ status: 200, schema: orderDetailSchema })
+  @ApiResponse({ status: 401, description: 'UNAUTHORIZED' })
+  @ApiResponse({ status: 403, description: 'CUSTOMER only' })
+  @ApiResponse({ status: 404, description: 'Missing or foreign order' })
+  @ApiResponse({ status: 400, description: 'VALIDATION_FAILED' })
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Own order snapshots and safe payment summary; missing/foreign404',
+  })
+  detail(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query(EmptyBodyPipe) query: Record<string, never>,
+  ) {
+    void query;
+    return this.orders.detail(req.identity!.sub, id);
+  }
+
+  @Get(':id/history')
+  @ApiResponse({ status: 200, schema: historySchema })
+  @ApiResponse({ status: 401, description: 'UNAUTHORIZED' })
+  @ApiResponse({ status: 403, description: 'CUSTOMER only' })
+  @ApiResponse({ status: 404, description: 'Missing or foreign order' })
+  @ApiResponse({ status: 400, description: 'VALIDATION_FAILED' })
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Own order history; missing/foreign404',
+    description:
+      'offset/limit pagination; createdAt ASC, id ASC. Actor USER with UUID or SYSTEM with null.',
+  })
+  history(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query() query: PaginationQueryDto,
+  ) {
+    return this.orders.history(req.identity!.sub, id, query);
+  }
+
+  @Post(':id/cancel')
+  @ApiResponse({ status: 200, schema: cancellationSchema })
+  @ApiResponse({ status: 401, description: 'UNAUTHORIZED' })
+  @ApiResponse({ status: 403, description: 'CUSTOMER only' })
+  @ApiResponse({ status: 404, description: 'Missing or foreign order' })
+  @ApiResponse({ status: 400, description: 'VALIDATION_FAILED' })
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Cancel own pending reservation',
+    description:
+      'Missing/foreign404; nonpending or overdue409 ORDER_NOT_ELIGIBLE. Already CANCELLED200 changed:false. Atomic attempt expiry, release once and USER history; restoration overflow409 STOCK_RANGE_EXCEEDED rolls back.',
+  })
+  cancel(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body(EmptyBodyPipe) body: Record<string, never>,
+    @Query(EmptyBodyPipe) query: Record<string, never>,
+  ) {
+    void body;
+    void query;
+    return this.orders.cancel(req.identity!.sub, id);
+  }
+
   @Post()
   @Header('Cache-Control', 'no-store')
   @ApiOperation({

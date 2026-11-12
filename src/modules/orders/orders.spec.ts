@@ -229,7 +229,7 @@ describe('checkout HTTP boundary and ownership', () => {
       expect.objectContaining({ items }),
     );
   });
-  it('rejects unknown query transport and publishes only checkout for orders', async () => {
+  it('rejects unknown query transport and publishes implemented order routes without payment initiation', async () => {
     expect(
       (await post(valid, 'CUSTOMER', '?userId=' + randomUUID())).status,
     ).toBe(400);
@@ -239,7 +239,7 @@ describe('checkout HTTP boundary and ownership', () => {
     expect(spec.paths['/api/v1/orders'].post.security).toEqual([
       { bearer: [] },
     ]);
-    expect(spec.paths['/api/v1/orders'].get).toBeUndefined();
+    expect(spec.paths['/api/v1/orders'].get).toBeDefined();
     expect(spec.paths['/api/v1/orders/{id}/payment-attempts']).toBeUndefined();
   });
 });

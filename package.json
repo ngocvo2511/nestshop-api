@@ -22,7 +22,8 @@
     "migration:revert": "node dist/database/cli.js revert",
     "migration:status": "node dist/database/cli.js status",
     "seed": "node dist/database/cli.js seed",
-    "admin:setup": "node dist/database/cli.js admin"
+    "admin:setup": "node dist/database/cli.js admin",
+    "verify:compose": "node scripts/verify-compose.cjs"
   },
   "dependencies": {
     "@nestjs/common": "12.3.2",

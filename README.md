@@ -14,6 +14,7 @@ NestJS e-commerce backend with TypeORM and PostgreSQL.
 - Customer-owned order list/detail/history and atomic cancellation with one-time stock release.
 - Shared STAFF/ADMIN fulfillment queue, detail/history and audited forward-only status transitions.
 - Owner-only VNPay Sandbox payment URL initiation with exact amounts and unresolved-attempt protection.
+- Signature-verified IPN settlement, a nonauthoritative browser return and read-only ADMIN payment reconciliation.
 
 ## Development
 
@@ -83,11 +84,11 @@ Keep `VNPAY_MODE=unconfigured` unless using assigned Sandbox settings. Configure
 
 `POST /api/v1/orders/:id/payment-attempts` accepts an empty body for an eligible CUSTOMER-owned order. Prices and amounts come from persisted data. An unresolved PENDING attempt conflicts even after its local target time; safe URL reuse and provider finality are not assumed.
 
-Callback settlement, browser return and reconciliation are introduced by the dependent callback feature.
+`GET /api/v1/payments/vnpay/ipn` verifies the original signed query and commits applicable payment/order/history/receipt changes before returning its plain provider acknowledgement. It never deducts stock a second time. Browser `/return` reports a minimal nonauthoritative signed outcome; settlement happens only through IPN. ADMIN reconciliation endpoints expose safe canonical payment metadata and receipts without signed URLs or credentials.
 
 ## Remaining scope
 
-Callback settlement/reconciliation, expiration/recovery workers and real Sandbox acceptance remain open. Cancellation releases an eligible reservation once; automatic expiry release is not implemented. Use disposable development data for the incomplete lifecycle.
+Expiration/recovery workers, verified real Sandbox delivery/finality/reuse, and final coverage/performance/CI acceptance remain open. Cancellation can release an eligible reservation once; automatic release for expired reservations is not implemented. Deterministic signatures and PostgreSQL tests do not establish real provider acceptance. Use disposable development data while exercising the incomplete expiration workflow.
 
 ## Contributions
 

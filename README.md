@@ -13,6 +13,7 @@ NestJS e-commerce backend with TypeORM and PostgreSQL.
 - Validated JPEG/PNG/WebP upload and safe product-image reads.
 - Customer-owned order list/detail/history and atomic cancellation with one-time stock release.
 - Shared STAFF/ADMIN fulfillment queue, detail/history and audited forward-only status transitions.
+- Owner-only VNPay Sandbox payment URL initiation with exact amounts and unresolved-attempt protection.
 
 ## Development
 
@@ -76,9 +77,17 @@ The API is published on `http://127.0.0.1:3300`; PostgreSQL is private to the Co
 
 `npm run verify:compose` verifies image build, readiness, repeated migration/seed/admin commands and database/upload persistence using its own disposable project.
 
+## VNPay Sandbox configuration
+
+Keep `VNPAY_MODE=unconfigured` unless using assigned Sandbox settings. Configure `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `VNPAY_RETURN_URL` and `VNPAY_IPN_URL` in the ignored `.env` or `.env.compose`; keep credentials and signed payment URLs out of logs and version control. Supported settings are API 2.1.0, locale `vn` or `en`, and timezone `Asia/Ho_Chi_Minh`. The IPN URL must be registered with the merchant; generating a signed URL makes no outbound provider request.
+
+`POST /api/v1/orders/:id/payment-attempts` accepts an empty body for an eligible CUSTOMER-owned order. Prices and amounts come from persisted data. An unresolved PENDING attempt conflicts even after its local target time; safe URL reuse and provider finality are not assumed.
+
+Callback settlement, browser return and reconciliation are introduced by the dependent callback feature.
+
 ## Remaining scope
 
-VNPay payment initiation/callbacks/reconciliation, expiration/recovery workers and real Sandbox acceptance remain open. Cancellation releases an eligible reservation once; automatic expiry release is not implemented. Use disposable development data for the incomplete lifecycle.
+Callback settlement/reconciliation, expiration/recovery workers and real Sandbox acceptance remain open. Cancellation releases an eligible reservation once; automatic expiry release is not implemented. Use disposable development data for the incomplete lifecycle.
 
 ## Contributions
 

@@ -62,6 +62,8 @@ describe('validated environment', () => {
     ['NODE_ENV', 'staging'],
     ['VNPAY_MODE', 'production'],
     ['VNPAY_API_VERSION', '2.0.0'],
+    ['VNPAY_LOCALE', 'invalid'],
+    ['VNPAY_TIMEZONE', 'UTC'],
     ['JWT_ISSUER', ''],
     ['JWT_AUDIENCE', ' '],
     ['UPLOAD_DIRECTORY', ' '],

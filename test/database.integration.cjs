@@ -5,6 +5,7 @@ const { describe } = require('@jest/globals');
 const { registerAccountCases } = require('./accounts.cases.cjs');
 const { registerProductCases } = require('./products.cases.cjs');
 const { registerMediaInventoryCases } = require('./media-inventory.cases.cjs');
+const { registerPaymentCases } = require('./payments.cases.cjs');
 const { registerFulfillmentCases } = require('./fulfillment.cases.cjs');
 const { registerCheckoutCases } = require('./checkout.cases.cjs');
 const { createDataSource } = require('../dist/database/data-source');
@@ -1168,3 +1169,5 @@ registerMediaInventoryCases(() => source, appDatabase);
 registerCheckoutCases(() => source, appDatabase);
 
 registerFulfillmentCases(() => source, appDatabase);
+
+registerPaymentCases(() => source, appDatabase);

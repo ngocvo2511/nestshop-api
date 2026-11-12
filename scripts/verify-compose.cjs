@@ -15,6 +15,15 @@ const env = {
   COMPOSE_JWT_ACCESS_SECRET: jwtSecret,
   INITIAL_ADMIN_EMAIL: `${randomBytes(8).toString('hex')}@test.invalid`,
   INITIAL_ADMIN_PASSWORD: adminPassword,
+  VNPAY_MODE: 'unconfigured',
+  VNPAY_API_VERSION: '2.1.0',
+  VNPAY_LOCALE: 'vn',
+  VNPAY_TIMEZONE: 'Asia/Ho_Chi_Minh',
+  VNPAY_TMN_CODE: '',
+  VNPAY_HASH_SECRET: '',
+  VNPAY_RETURN_URL: '',
+  VNPAY_IPN_URL: '',
+  PAYMENT_ATTEMPT_SECONDS: '1200',
 };
 const args = ['compose', '-p', project, '-f', 'compose.yaml'];
 const log = resolve(root, 'tmp/compose-verification.log');
@@ -118,6 +127,7 @@ async function main() {
       '/api/v1/orders/{id}',
       '/api/v1/orders/{id}/history',
       '/api/v1/orders/{id}/cancel',
+      '/api/v1/orders/{id}/payment-attempts',
       '/api/v1/staff/orders',
       '/api/v1/staff/orders/{id}',
       '/api/v1/staff/orders/{id}/history',

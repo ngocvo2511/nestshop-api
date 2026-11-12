@@ -8,7 +8,7 @@ export function configureOpenApi(app: INestApplication): void {
     .setTitle('E-commerce Backend API')
     .setVersion('1.0.0')
     .setDescription(
-      'Account and catalog APIs with validated images and audited inventory. Checkout and payments are added separately.',
+      'Accounts, catalog, product images, inventory adjustments and CUSTOMER atomic checkout with stock reservation. Order reads/cancellation, payment and expiration remain future work. See Swagger for the implemented API contract.',
     )
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' })
     .build();

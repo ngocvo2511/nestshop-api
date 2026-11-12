@@ -5,6 +5,7 @@ const { describe } = require('@jest/globals');
 const { registerAccountCases } = require('./accounts.cases.cjs');
 const { registerProductCases } = require('./products.cases.cjs');
 const { registerMediaInventoryCases } = require('./media-inventory.cases.cjs');
+const { registerCallbackCases } = require('./callbacks.cases.cjs');
 const { registerPaymentCases } = require('./payments.cases.cjs');
 const { registerFulfillmentCases } = require('./fulfillment.cases.cjs');
 const { registerCheckoutCases } = require('./checkout.cases.cjs');
@@ -191,15 +192,17 @@ test('M1 compiled application starts on migrated PostgreSQL with health, Swagger
         '/api/v1/auth/refresh',
       ]),
     );
-    for (const path of [
-      '/',
-      '/api/v1/auth/login',
-      '/api/v1/payments/vnpay/ipn',
-    ]) {
+    for (const path of ['/', '/api/v1/auth/login']) {
       const missing = await fetch(application.base + path);
       expect(missing.status).toBe(404);
       expect((await missing.json()).error.code).toBe('NOT_FOUND');
     }
+    const ipn = await fetch(application.base + '/api/v1/payments/vnpay/ipn');
+    expect(ipn.status).toBe(200);
+    expect(await ipn.json()).toEqual({
+      RspCode: '99',
+      Message: 'Processing error',
+    });
     expect(
       application.output().includes(application.env.JWT_ACCESS_SECRET),
     ).toBe(false);
@@ -1171,3 +1174,5 @@ registerCheckoutCases(() => source, appDatabase);
 registerFulfillmentCases(() => source, appDatabase);
 
 registerPaymentCases(() => source, appDatabase);
+
+registerCallbackCases(() => source, appDatabase);

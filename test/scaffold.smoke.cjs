@@ -60,7 +60,7 @@ function launch(port, overrides = {}) {
 }
 
 test(
-  'built app starts without VNPay and protects own-order reads',
+  'built app starts without VNPay, serves HTTP and protects own-order reads and fails unconfigured IPN safely',
   { timeout: 45000 },
   async () => {
     const port = await freePort();
@@ -95,7 +95,8 @@ test(
       assert.equal((await fetch(base + '/api/v1/orders')).status, 401);
       for (const route of ['/api/v1/payments/vnpay/ipn']) {
         const response = await fetch(base + route);
-        assert.equal(response.status, 404);
+        assert.equal(response.status, 200);
+        assert.equal((await response.json()).RspCode, '99');
       }
       assert.match(app.output(), /"vnpay":"unconfigured"/);
       assert.ok(!app.output().includes(app.env.JWT_ACCESS_SECRET));

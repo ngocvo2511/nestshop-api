@@ -596,7 +596,7 @@ function registerPaymentCases(getSource, appDatabase) {
       }
     });
 
-    test('Swagger advertises owner initiation without future callback routes', async () => {
+    test('Swagger advertises owner initiation and public callback/return boundaries', async () => {
       const spec = await (await fetch(app.base + '/api/docs-json')).json();
       const op = spec.paths['/api/v1/orders/{id}/payment-attempts'].post;
       expect(op.security).toEqual([{ bearer: [] }]);
@@ -604,8 +604,8 @@ function registerPaymentCases(getSource, appDatabase) {
         op.responses['201'].content['application/json'].schema.properties.data
           .properties.reused.enum,
       ).toEqual([false]);
-      expect(spec.paths['/api/v1/payments/vnpay/ipn']).toBeUndefined();
-      expect(spec.paths['/api/v1/payments/vnpay/return']).toBeUndefined();
+      expect(spec.paths['/api/v1/payments/vnpay/ipn'].get).toBeDefined();
+      expect(spec.paths['/api/v1/payments/vnpay/return'].get).toBeDefined();
     });
   });
 }

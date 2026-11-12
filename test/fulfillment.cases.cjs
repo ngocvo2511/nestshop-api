@@ -692,7 +692,7 @@ function registerFulfillmentCases(getSource, appDatabase) {
       expect(
         spec.components.schemas.AdvanceOrderDto.properties.status.enum,
       ).toEqual(['PROCESSING', 'SHIPPED', 'COMPLETED']);
-      expect(spec.paths['/api/v1/payments/vnpay/ipn']).toBeUndefined();
+      expect(spec.paths['/api/v1/payments/vnpay/ipn'].get).toBeDefined();
     });
   });
 }

@@ -48,6 +48,8 @@ async function startBuiltApplication(database, lifetimes = {}) {
         }
       : {}),
   };
+  if (process.env.TEST_IN_PROCESS === 'true')
+    return require('./in-process-app.cjs').startInProcess(env, cwd);
   const child = spawn(
     process.execPath,
     [resolve(__dirname, '../../dist/main.js')],

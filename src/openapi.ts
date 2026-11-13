@@ -47,6 +47,82 @@ export function configureOpenApi(app: INestApplication): void {
       },
     },
   };
+  for (const [path, item] of Object.entries(document.paths)) {
+    for (const method of ['get', 'post', 'patch', 'put', 'delete'] as const) {
+      const operation = item?.[method];
+      if (!operation) continue;
+      const provider = path === '/api/v1/payments/vnpay/ipn';
+      const authenticated =
+        operation.security?.some((entry) => 'bearer' in entry) ?? false;
+      const roles = !authenticated
+        ? []
+        : path.includes('/admin/') ||
+            (path.includes('/products') && method !== 'get')
+          ? ['ADMIN']
+          : path.includes('/staff/')
+            ? ['STAFF', 'ADMIN']
+            : path.includes('/orders')
+              ? ['CUSTOMER']
+              : ['CUSTOMER', 'STAFF', 'ADMIN'];
+      Object.assign(operation, { 'x-roles': roles });
+      Object.assign(operation, {
+        'x-authentication': authenticated
+          ? 'bearer'
+          : provider || path.endsWith('/vnpay/return')
+            ? 'provider-signature'
+            : path.endsWith('/auth/logout') || path.endsWith('/auth/refresh')
+              ? 'refresh-token'
+              : 'public',
+      });
+      operation.parameters ??= [];
+      for (const parameter of operation.parameters) {
+        if ('$ref' in parameter) continue;
+        if (
+          ['offset', 'limit'].includes(parameter.name) &&
+          parameter.schema &&
+          !('$ref' in parameter.schema)
+        )
+          parameter.schema.type = 'integer';
+        if (parameter.in === 'path')
+          parameter.schema = { type: 'string', format: 'uuid' };
+      }
+      operation.responses ??= {};
+      if (!provider) {
+        for (const [status, description] of [
+          ['500', 'Safe INTERNAL_ERROR; no SQL/stack/secret disclosure'],
+          ['503', 'SERVICE_UNAVAILABLE / PAYMENT_UNAVAILABLE where applicable'],
+        ])
+          operation.responses[status] ??= { description };
+        for (const [status, response] of Object.entries(operation.responses)) {
+          if (Number(status) >= 400 && response && !('$ref' in response))
+            response.content ??= {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+              },
+            };
+        }
+      }
+    }
+  }
+  // Input object schemas reflect the strict whitelist; protected/unknown fields reject.
+  for (const [name, schema] of Object.entries(document.components.schemas)) {
+    if (!name.endsWith('Dto') || '$ref' in schema || schema.type !== 'object')
+      continue;
+    schema.additionalProperties = false;
+    for (const [field, property] of Object.entries(schema.properties ?? {})) {
+      if (
+        !('$ref' in property) &&
+        [
+          'offset',
+          'limit',
+          'quantity',
+          'initialStock',
+          'quantityDelta',
+        ].includes(field)
+      )
+        property.type = 'integer';
+    }
+  }
   SwaggerModule.setup('api/docs', app, document, {
     jsonDocumentUrl: '/api/docs-json',
     swaggerOptions: { persistAuthorization: false },

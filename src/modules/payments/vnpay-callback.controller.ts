@@ -1,5 +1,5 @@
-import { Controller, Get, Header, Req } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { applyDecorators, Controller, Get, Header, Req } from '@nestjs/common';
+import { ApiOperation, ApiResponse, ApiTags, ApiQuery } from '@nestjs/swagger';
 import { ContextRequest, ResponseMode } from '../../common/http/response-mode';
 import { browserReturnSchema } from './reconciliation.openapi';
 import { VnpayCallbackService } from './vnpay-callback.service';
@@ -7,11 +7,56 @@ const rawQuery = (req: ContextRequest) =>
   req.originalUrl.includes('?')
     ? req.originalUrl.slice(req.originalUrl.indexOf('?') + 1)
     : '';
+function CallbackQueries() {
+  const fields: Array<[string, number, boolean, string?]> = [
+    ['vnp_TmnCode', 8, true],
+    ['vnp_TxnRef', 100, true],
+    [
+      'vnp_Amount',
+      12,
+      true,
+      'Whole VND multiplied by100; positive integer digit string.',
+    ],
+    ['vnp_OrderInfo', 255, true],
+    ['vnp_ResponseCode', 2, true],
+    ['vnp_TransactionStatus', 2, true],
+    ['vnp_TransactionNo', 15, true],
+    [
+      'vnp_SecureHash',
+      128,
+      true,
+      'HMAC-SHA512 hex signature; never log or persist raw query/signature.',
+    ],
+    [
+      'vnp_PayDate',
+      14,
+      false,
+      'yyyyMMddHHmmss GMT+7; validated when supplied.',
+    ],
+    ['vnp_BankCode', 20, false],
+    ['vnp_BankTranNo', 255, false],
+    ['vnp_CardType', 20, false],
+    ['vnp_CurrCode', 3, false, 'VND when supplied.'],
+  ];
+  return applyDecorators(
+    ...fields.map(([name, maxLength, required, description]) =>
+      ApiQuery({
+        name,
+        required,
+        description:
+          description ??
+          'Provider-signed field; original query decoded once; duplicates/unknown fields reject.',
+        schema: { type: 'string', maxLength },
+      }),
+    ),
+  );
+}
 @Controller('payments/vnpay')
 @ApiTags('VNPay callbacks')
 export class VnpayCallbackController {
   constructor(private readonly callbacks: VnpayCallbackService) {}
   @Get('ipn')
+  @CallbackQueries()
   @ResponseMode('provider')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
@@ -35,6 +80,7 @@ export class VnpayCallbackController {
     return this.callbacks.ipn(rawQuery(req), req.correlationId);
   }
   @Get('return')
+  @CallbackQueries()
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary:

@@ -184,6 +184,7 @@ test('M1 compiled application starts on migrated PostgreSQL with health, Swagger
     const spec = await (
       await fetch(application.base + '/api/docs-json')
     ).json();
+    require('../scripts/openapi-contract.cjs').auditOpenApi(spec);
     expect(Object.keys(spec.paths)).toEqual(
       expect.arrayContaining([
         '/api/v1/health',

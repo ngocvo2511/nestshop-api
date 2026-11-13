@@ -46,7 +46,7 @@ Money uses integer VND decimal strings at API boundaries and BigInt arithmetic. 
 
 ## Initial administrator
 
-Set `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` through the local process environment, then run `npm run admin:setup` after build/migration. Passwords must contain 12â€“128 characters without surrounding whitespace or control characters. Setup never promotes an existing non-admin or overwrites an existing administrator. Clear the setup variables afterward.
+Set `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` through the local process environment, then run `npm run admin:setup` after build/migration. Passwords must contain 12Ã¢â‚¬â€œ128 characters without surrounding whitespace or control characters. Setup never promotes an existing non-admin or overwrites an existing administrator. Clear the setup variables afterward.
 
 ## Checks
 
@@ -99,3 +99,7 @@ Genuine Sandbox callback delivery/ACK/retry, safe URL reuse, expiry/finality and
 ## Contributions
 
 Use one branch per feature, for example `feat/product-catalog`, and Conventional Commit messages such as `feat(auth): rotate refresh tokens atomically`. Use the [PR template](.github/pull_request_template.md). All PRs target `main`. If a feature depends on another open PR, merge that prerequisite first using Create a merge commit; GitHub then removes its changes from the dependent diff. After squash/rebase merges, restack dependent branches before continuing.
+
+## API contract verification
+
+Integration and Compose checks audit the implemented operation inventory, role/authentication metadata, bounded query/path/body schemas, exact-money fields and error envelopes. Empty-body actions, multipart/binary responses, 204 responses and the provider's unwrapped IPN acknowledgement retain their explicit boundaries. Compose audit output is written to ignored `tmp/reports/openapi-audit.json`.

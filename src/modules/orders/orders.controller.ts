@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -98,6 +99,14 @@ export class OrdersController {
   }
 
   @Post(':id/cancel')
+  @ApiBody({
+    required: false,
+    schema: { type: 'object', additionalProperties: false, maxProperties: 0 },
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'ORDER_NOT_ELIGIBLE / STOCK_RANGE_EXCEEDED; no second release',
+  })
   @ApiResponse({ status: 200, schema: cancellationSchema })
   @ApiResponse({ status: 401, description: 'UNAUTHORIZED' })
   @ApiResponse({ status: 403, description: 'CUSTOMER only' })
@@ -126,7 +135,7 @@ export class OrdersController {
   @ApiOperation({
     summary: 'CUSTOMER atomic checkout and inventory reservation',
     description:
-      '1–100 distinct UUIDv4 products, normalized before duplicate checks; integer quantity1..2147483647. Inline shipping required; no cart/address ID. Locks products in ascending ID, reloads price/active/stock, rejects any unavailable/overflow before writes. One transaction reserves stock and creates immutable snapshots plus initial SYSTEM history. Default reservation3600s from database time after locks, configurable via ORDER_RESERVATION_SECONDS. Generated line totals come from PostgreSQL. Items returned in productId ascending order. No payment initiation or idempotency-key API; each accepted call creates a new reservation.',
+      '1-100 distinct UUIDv4 products, normalized before duplicate checks; integer quantity1..2147483647. Inline shipping required; no cart/address ID. Locks products in ascending ID, reloads price/active/stock, rejects any unavailable/overflow before writes. One transaction reserves stock and creates immutable snapshots plus initial SYSTEM history. Default reservation3600s from database time after locks, configurable via ORDER_RESERVATION_SECONDS. Generated line totals come from PostgreSQL. Items returned in productId ascending order. No payment initiation or idempotency-key API; each accepted call creates a new reservation.',
   })
   @ApiResponse({ status: 201, schema: checkoutSchema })
   @ApiResponse({

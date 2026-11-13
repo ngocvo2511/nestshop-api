@@ -24,6 +24,9 @@ const env = {
   VNPAY_RETURN_URL: '',
   VNPAY_IPN_URL: '',
   PAYMENT_ATTEMPT_SECONDS: '1200',
+  ORDER_RESERVATION_SECONDS: '3600',
+  EXPIRY_SCAN_INTERVAL_SECONDS: '60',
+  EXPIRY_SCAN_BATCH_SIZE: '100',
 };
 const args = ['compose', '-p', project, '-f', 'compose.yaml'];
 const log = resolve(root, 'tmp/compose-verification.log');

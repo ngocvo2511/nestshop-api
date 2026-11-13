@@ -8,7 +8,7 @@ export function configureOpenApi(app: INestApplication): void {
     .setTitle('E-commerce Backend API')
     .setVersion('1.0.0')
     .setDescription(
-      'Accounts, catalog, audited inventory, stock-safe own orders/cancellation and STAFF fulfillment, plus owner-only VNPay Sandbox URL initiation. Verified IPN settlement, non-settling return and read-only Admin reconciliation implemented; expiration and Sandbox acceptance remain future work. See Swagger for the implemented API contract.',
+      'Accounts, catalog, audited inventory, stock-safe own orders/cancellation and STAFF fulfillment, plus owner-only VNPay Sandbox URL initiation. Verified IPN settlement, non-settling return and read-only Admin reconciliation implemented. Startup/periodic order expiration releases reserved stock once; genuine Sandbox acceptance remains unverified. See Swagger for the implemented API contract.',
     )
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' })
     .build();

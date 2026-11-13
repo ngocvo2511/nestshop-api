@@ -11,11 +11,11 @@
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "build": "nest build",
-    "lint": "eslint src test",
-    "format": "prettier --write src test scripts *.json *.cjs *.mjs .prettierrc .env.example",
-    "format:check": "prettier --check src test scripts *.json *.cjs *.mjs .prettierrc .env.example",
+    "lint": "eslint src test scripts",
+    "format": "prettier --write src test scripts *.json *.cjs *.mjs .prettierrc .env.example .github/workflows/*.yml",
+    "format:check": "prettier --check src test scripts *.json *.cjs *.mjs .prettierrc .env.example .github/workflows/*.yml",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand",
-    "test:cov": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage --runInBand",
+    "test:cov": "npm run build && node scripts/run-integration.cjs --coverage",
     "test:smoke": "node --test test/scaffold.smoke.cjs",
     "test:integration": "npm run build && node scripts/run-integration.cjs",
     "migration:run": "node dist/database/cli.js migrate",
@@ -23,7 +23,8 @@
     "migration:status": "node dist/database/cli.js status",
     "seed": "node dist/database/cli.js seed",
     "admin:setup": "node dist/database/cli.js admin",
-    "verify:compose": "node scripts/verify-compose.cjs"
+    "verify:compose": "node scripts/verify-compose.cjs",
+    "benchmark": "npm run build && node scripts/run-integration.cjs --benchmark"
   },
   "dependencies": {
     "@nestjs/common": "12.3.2",
@@ -57,5 +58,9 @@
     "ts-jest": "29.4.15",
     "typescript": "5.9.3",
     "typescript-eslint": "8.72.1"
+  },
+  "overrides": {
+    "glob": "14.0.6",
+    "minimatch": "11.0.8"
   }
 }

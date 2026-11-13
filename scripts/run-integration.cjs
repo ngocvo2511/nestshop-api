@@ -2,6 +2,8 @@ const { spawn } = require('node:child_process');
 const { randomBytes } = require('node:crypto');
 const { resolve } = require('node:path');
 
+const benchmark = process.argv.includes('--benchmark');
+const coverage = process.argv.includes('--coverage');
 const project = `nestshop-it-${randomBytes(6).toString('hex')}`;
 const password = randomBytes(32).toString('hex');
 const root = resolve(__dirname, '..');
@@ -42,6 +44,13 @@ function execute(command, args, options = {}) {
 }
 
 async function main() {
+  if (coverage && benchmark)
+    throw new Error('Choose either coverage or benchmark mode');
+  if (process.env.TEST_DB_SERVICE === 'true')
+    return require('./run-service-integration.cjs').runService({
+      coverage,
+      benchmark,
+    });
   // Refuse to reuse any pre-existing project. Only this fresh random project is cleaned up.
   if (!/^nestshop-it-[a-f0-9]{12}$/.test(project))
     throw new Error('Invalid disposable project identifier');
@@ -78,18 +87,23 @@ async function main() {
       );
     await execute(
       process.execPath,
-      [
-        '--experimental-vm-modules',
-        'node_modules/jest/bin/jest.js',
-        '--config',
-        'jest.integration.config.cjs',
-        '--runInBand',
-      ],
+      benchmark
+        ? ['scripts/benchmark-products.cjs']
+        : [
+            '--experimental-vm-modules',
+            'node_modules/jest/bin/jest.js',
+            '--config',
+            coverage
+              ? 'jest.coverage.config.cjs'
+              : 'jest.integration.config.cjs',
+            '--runInBand',
+          ],
       {
         stdio: 'inherit',
         env: {
           ...process.env,
           NODE_ENV: 'test',
+          TEST_IN_PROCESS: coverage ? 'true' : 'false',
           TEST_DB_DISPOSABLE: project,
           TEST_DB_HOST: '127.0.0.1',
           TEST_DB_PORT: match[1],

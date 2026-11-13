@@ -1,0 +1,62 @@
+name: Quality checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [coverage, integration, benchmark]
+    services:
+      postgres:
+        image: postgres:18.6-alpine
+        env:
+          POSTGRES_USER: shop_test
+          POSTGRES_DB: shop_test
+          POSTGRES_PASSWORD: ci-only-disposable-postgres-fixture
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U shop_test -d shop_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      TEST_DB_SERVICE: 'true'
+      TEST_DB_HOST: 127.0.0.1
+      TEST_DB_PORT: ${{ job.services.postgres.ports[5432] }}
+      TEST_DB_PASSWORD: ci-only-disposable-postgres-fixture
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24.22.2
+          cache: npm
+      - run: npm install --global npm@11.12.1
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run build
+      - run: npm test -- --silent
+        if: matrix.mode == 'integration'
+      - run: npm audit --omit=dev --audit-level=low
+        if: matrix.mode == 'integration'
+      - run: npm run test:smoke
+        if: matrix.mode == 'integration'
+      - run: npm run test:cov
+        if: matrix.mode == 'coverage'
+      - run: npm run test:integration
+        if: matrix.mode == 'integration'
+      - run: npm run benchmark
+        if: matrix.mode == 'benchmark'

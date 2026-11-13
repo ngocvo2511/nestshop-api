@@ -15,6 +15,7 @@ NestJS e-commerce backend with TypeORM and PostgreSQL.
 - Shared STAFF/ADMIN fulfillment queue, detail/history and audited forward-only status transitions.
 - Owner-only VNPay Sandbox payment URL initiation with exact amounts and unresolved-attempt protection.
 - Signature-verified IPN settlement, a nonauthoritative browser return and read-only ADMIN payment reconciliation.
+- Single-instance startup/periodic order expiry with bounded non-overlapping scans and atomic stock release.
 
 ## Development
 
@@ -46,7 +47,7 @@ Money uses integer VND decimal strings at API boundaries and BigInt arithmetic. 
 
 ## Initial administrator
 
-Set `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` through the local process environment, then run `npm run admin:setup` after build/migration. Passwords must contain 12Ã¢â‚¬â€œ128 characters without surrounding whitespace or control characters. Setup never promotes an existing non-admin or overwrites an existing administrator. Clear the setup variables afterward.
+Set `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` through the local process environment, then run `npm run admin:setup` after build/migration. Passwords must contain 12-128 characters without surrounding whitespace or control characters. Setup never promotes an existing non-admin or overwrites an existing administrator. Clear the setup variables afterward.
 
 ## Checks
 
@@ -94,12 +95,20 @@ Order expiry and cancellation use one reservation termination operation, with or
 
 ## Remaining scope
 
-Genuine Sandbox callback delivery/ACK/retry, safe URL reuse, expiry/finality and final coverage/performance/CI acceptance remain open. Local fixtures and PostgreSQL race tests establish implementation evidence; they do not establish genuine provider acceptance.
+Genuine Sandbox callback delivery/ACK/retry, safe URL reuse and provider finality remain unverified. Automated quality checks do not establish genuine merchant acceptance or production readiness.
 
 ## Contributions
 
 Use one branch per feature, for example `feat/product-catalog`, and Conventional Commit messages such as `feat(auth): rotate refresh tokens atomically`. Use the [PR template](.github/pull_request_template.md). All PRs target `main`. If a feature depends on another open PR, merge that prerequisite first using Create a merge commit; GitHub then removes its changes from the dependent diff. After squash/rebase merges, restack dependent branches before continuing.
 
-## API contract verification
+## Quality checks
 
-Integration and Compose checks audit the implemented operation inventory, role/authentication metadata, bounded query/path/body schemas, exact-money fields and error envelopes. Empty-body actions, multipart/binary responses, 204 responses and the provider's unwrapped IPN acknowledgement retain their explicit boundaries. Compose audit output is written to ignored `tmp/reports/openapi-audit.json`.
+Use the pinned Node 24.22.2 and npm 11.12.1 with `npm ci`.
+
+- `npm run test:cov` builds and runs unit/API plus real PostgreSQL tests against source TypeScript inside Jest. Global statements, branches, functions and lines must each reach 70%; every non-test source file remains in scope. These are combined metrics, not unit-only coverage. Reports are written to ignored `coverage/`.
+- `npm run test:integration` independently tests the compiled application in child processes, including startup/recovery. Local runs create fresh random PostgreSQL Compose projects and remove only their own resources.
+- `npm run benchmark` uses a fresh database with 1000 active products, 5 warmups and 50 sequential catalog requests. Server request-to-response-finish timing is matched by correlation ID; nearest-rank p95 must be below 500 ms. This is a bounded catalog check, not a load or production-performance guarantee. Measurements are retained in `tmp/reports/benchmark.json`.
+- `npm run verify:compose` validates the compiled API contract and database/upload persistence. Contract audit output is in `tmp/reports/openapi-audit.json`.
+
+GitHub Actions runs separate PostgreSQL service jobs for coverage, compiled integration/smoke and benchmark, using pinned actions, read-only repository permissions and synthetic test credentials. Production dependency audit is enforced. Service mode is explicitly restricted to GitHub Actions and a loopback disposable service; local runs use the random Compose runner.
+

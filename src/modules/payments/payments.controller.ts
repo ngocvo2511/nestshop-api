@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOperation,
   ApiResponse,
   ApiTags,
@@ -32,6 +33,10 @@ import { initiationSchema } from './payments.openapi';
 export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
   @Post(':id/payment-attempts')
+  @ApiBody({
+    required: false,
+    schema: { type: 'object', additionalProperties: false, maxProperties: 0 },
+  })
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary: 'Owner-only local VNPay Sandbox URL initiation',

@@ -112,6 +112,12 @@ async function main() {
     const spec = await (
       await fetch(`http://127.0.0.1:${env.COMPOSE_API_PORT}/api/docs-json`)
     ).json();
+    const openApiAudit = require('./openapi-contract.cjs').auditOpenApi(spec);
+    mkdirSync(resolve(root, 'tmp/reports'), { recursive: true });
+    writeFileSync(
+      resolve(root, 'tmp/reports/openapi-audit.json'),
+      JSON.stringify(openApiAudit, null, 2) + '\n',
+    );
     const implementedPaths = [
       '/api/v1/health',
       '/api/v1/auth/register',

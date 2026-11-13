@@ -11,6 +11,7 @@ const jwtSecret = randomBytes(32).toString('hex');
 const adminPassword = randomBytes(24).toString('hex');
 const env = {
   ...process.env,
+  COMPOSE_API_IMAGE: 'nestshop-api:' + project,
   COMPOSE_DB_PASSWORD: dbPassword,
   COMPOSE_JWT_ACCESS_SECRET: jwtSecret,
   INITIAL_ADMIN_EMAIL: `${randomBytes(8).toString('hex')}@test.invalid`,

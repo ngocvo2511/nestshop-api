@@ -24,7 +24,8 @@
     "seed": "node dist/database/cli.js seed",
     "admin:setup": "node dist/database/cli.js admin",
     "verify:compose": "node scripts/verify-compose.cjs",
-    "benchmark": "npm run build && node scripts/run-integration.cjs --benchmark"
+    "benchmark": "npm run build && node scripts/run-integration.cjs --benchmark",
+    "verify:delivery": "node scripts/verify-delivery.cjs"
   },
   "dependencies": {
     "@nestjs/common": "12.3.2",

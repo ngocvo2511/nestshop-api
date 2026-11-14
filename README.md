@@ -108,7 +108,12 @@ Use the pinned Node 24.22.2 and npm 11.12.1 with `npm ci`.
 - `npm run test:cov` builds and runs unit/API plus real PostgreSQL tests against source TypeScript inside Jest. Global statements, branches, functions and lines must each reach 70%; every non-test source file remains in scope. These are combined metrics, not unit-only coverage. Reports are written to ignored `coverage/`.
 - `npm run test:integration` independently tests the compiled application in child processes, including startup/recovery. Local runs create fresh random PostgreSQL Compose projects and remove only their own resources.
 - `npm run benchmark` uses a fresh database with 1000 active products, 5 warmups and 50 sequential catalog requests. Server request-to-response-finish timing is matched by correlation ID; nearest-rank p95 must be below 500 ms. This is a bounded catalog check, not a load or production-performance guarantee. Measurements are retained in `tmp/reports/benchmark.json`.
-- `npm run verify:compose` validates the compiled API contract and database/upload persistence. Contract audit output is in `tmp/reports/openapi-audit.json`.
+- `npm run verify:compose` validates the compiled API contract and database/upload persistence. Each verification uses its own image tag and Compose project. Contract audit output is in `tmp/reports/openapi-audit.json`.
 
 GitHub Actions runs separate PostgreSQL service jobs for coverage, compiled integration/smoke and benchmark, using pinned actions, read-only repository permissions and synthetic test credentials. Production dependency audit is enforced. Service mode is explicitly restricted to GitHub Actions and a loopback disposable service; local runs use the random Compose runner.
 
+## Isolated source verification
+
+`npm run verify:delivery` copies only the public source allowlist in `delivery-files.json` into a fresh system-temp directory. It installs dependencies from the lockfile and runs lint, formatting, coverage, compiled PostgreSQL integration, smoke, benchmark and Compose checks. Local documents, secrets, existing dependencies, build outputs, Git metadata and runtime data are excluded.
+
+The source copy is retained for inspection. Results and input hashes are written to ignored `tmp/reports/`; this verifies the allowlisted source copy, not a Git clean clone. Changes to application inputs require a new verification run. Sandbox acceptance remains separate.

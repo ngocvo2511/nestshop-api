@@ -1,3 +1,4 @@
+import { ApiErrors } from '../../common/http/api-errors.decorator';
 import {
   Body,
   Controller,
@@ -27,17 +28,23 @@ import { UuidParamDto } from '../../common/http/dto/uuid-param.dto';
 import { ContextRequest, ResponseMode } from '../../common/http/response-mode';
 import { AccessTokenGuard } from '../auth/access-token.guard';
 import { Roles, RolesGuard } from '../auth/roles.guard';
-import { ProductErrors } from './products.openapi';
 import { ImageUploadInterceptor } from './image-upload.interceptor';
 import { ProductImagesService } from './product-images.service';
 
 @Controller('products')
 @ApiTags('product images')
-@ProductErrors()
 export class ProductImagesController {
   constructor(private readonly images: ProductImagesService) {}
 
   @Post(':id/image')
+  @ApiErrors(
+    'VALIDATION_FAILED',
+    'UNAUTHORIZED',
+    'FORBIDDEN',
+    'NOT_FOUND',
+    'UPLOAD_INVALID_TYPE',
+    'UPLOAD_TOO_LARGE',
+  )
   @HttpCode(200)
   @UseGuards(AccessTokenGuard, RolesGuard)
   @Roles('ADMIN')
@@ -53,9 +60,9 @@ export class ProductImagesController {
     },
   })
   @ApiOperation({
-    summary: 'ADMIN replace one product image',
+    summary: 'Upload or replace a product image (ADMIN)',
     description:
-      'Exactly one file, no fields. JPEG/PNG/WebP <= configured cap <=5MiB; full decode/re-encode, matching MIME required, single frame and <=16M pixels. Generated filename; no client paths. Product lock serializes reference replacement; only unreferenced files are removed after commit. DB failure attempts safe orphan cleanup.',
+      'Send exactly one file in the multipart field named file. JPEG, PNG and WebP are supported. The file must fit UPLOAD_MAX_BYTES (at most 5 MiB), contain one image frame, and have at most 16 million pixels. Do not send other form fields. The server checks and re-encodes the image, saves it, and replaces the previous image. Returns the product ID and image URL.',
   })
   @ApiResponse({
     status: 200,
@@ -74,8 +81,16 @@ export class ProductImagesController {
       },
     },
   })
-  @ApiResponse({ status: 413, description: 'UPLOAD_TOO_LARGE' })
-  @ApiResponse({ status: 415, description: 'UPLOAD_INVALID_TYPE' })
+  @ApiResponse({
+    status: 413,
+    description:
+      'UPLOAD_TOO_LARGE: The image exceeds the configured file size limit.',
+  })
+  @ApiResponse({
+    status: 415,
+    description:
+      'UPLOAD_INVALID_TYPE: The image format or content is not supported.',
+  })
   upload(
     @Param() params: UuidParamDto,
     @UploadedFile() file: Express.Multer.File | undefined,
@@ -89,14 +104,15 @@ export class ProductImagesController {
   }
 
   @Get(':id/image')
+  @ApiErrors('VALIDATION_FAILED', 'NOT_FOUND')
   @ResponseMode('file')
   @Header('X-Content-Type-Options', 'nosniff')
   @Header('Cache-Control', 'no-store')
   @ApiProduces('image/jpeg', 'image/png', 'image/webp')
   @ApiOperation({
-    summary: 'Public active-only product image',
+    summary: 'View a product image',
     description:
-      'Reads only the stored generated reference. Missing/inactive product, missing/unsafe/symlink file reference return safe404 JSON. No arbitrary filename/path transport.',
+      'Returns the image file for an active product. Returns 404 if the product is missing, inactive or has no readable image. Pass the product ID, not a file path.',
   })
   @ApiResponse({ status: 200, schema: { type: 'string', format: 'binary' } })
   async read(

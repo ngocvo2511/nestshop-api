@@ -31,7 +31,7 @@ export class ProductQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     maxLength: 100,
     description:
-      'Case-insensitive literal substring in name/description. SQL wildcards are escaped.',
+      'Search text in the product name or description. Letter case does not matter. Characters such as % and _ are treated as normal text.',
   })
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @Transform(({ value }: { value: unknown }) => trimmed(value))
@@ -42,7 +42,7 @@ export class ProductQueryDto extends PaginationQueryDto {
     type: String,
     pattern: '^[1-9][0-9]{0,18}$',
     description:
-      'Inclusive integer VND; at most 9223372036854775807. Must not exceed maxPriceVnd.',
+      'Minimum price in whole VND, including this amount. Send a string, such as "100000". It must not exceed maxPriceVnd. Maximum: 9223372036854775807.',
   })
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsVndAmount()
@@ -51,7 +51,8 @@ export class ProductQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     type: String,
     pattern: '^[1-9][0-9]{0,18}$',
-    description: 'Inclusive integer VND; at most 9223372036854775807.',
+    description:
+      'Maximum price in whole VND, including this amount. Send a string, such as "500000". Maximum: 9223372036854775807.',
   })
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsVndAmount()
@@ -60,10 +61,22 @@ export class ProductQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     enum: productSorts,
     default: 'name',
-    description: 'Fixed allowlist; id tie-break follows the same direction.',
+    description:
+      'Sort by name, priceVnd or createdAt. Add a minus sign for descending order, such as -priceVnd for highest price first. Default: name, A to Z. Ties are ordered by product ID in the same direction.',
   })
   @IsIn(productSorts)
   sort: ProductSort = 'name';
+}
+
+export class AdminProductQueryDto extends ProductQueryDto {
+  @ApiPropertyOptional({
+    enum: ['all', 'active', 'inactive'],
+    default: 'all',
+    description:
+      'Choose all products, only active products, or only inactive products. Default: all. This filter is for the ADMIN list.',
+  })
+  @IsIn(['all', 'active', 'inactive'])
+  status: 'all' | 'active' | 'inactive' = 'all';
 }
 
 export class CreateProductDto {
@@ -82,7 +95,7 @@ export class CreateProductDto {
     type: String,
     pattern: '^[1-9][0-9]{0,18}$',
     description:
-      'Positive integer VND decimal string, maximum 9223372036854775807; JSON numbers are rejected.',
+      'Price in whole VND. Send a positive integer as a string, such as "350000", not a JSON number. Maximum: 9223372036854775807.',
   })
   @IsVndAmount()
   priceVnd!: string;
@@ -91,7 +104,8 @@ export class CreateProductDto {
     type: Number,
     minimum: 0,
     maximum: MAX_DB_INTEGER,
-    description: 'Create-only JSON integer stock. No string coercion.',
+    description:
+      'Starting stock when creating the product. Send a whole number, such as 10, not a string such as "10".',
   })
   @IsInt()
   @Min(0)
@@ -120,7 +134,7 @@ export class PatchProductDto {
     type: String,
     pattern: '^[1-9][0-9]{0,18}$',
     description:
-      'Positive integer VND decimal string, maximum 9223372036854775807.',
+      'Price in whole VND. Send a positive integer as a string, such as "350000". Maximum: 9223372036854775807.',
   })
   @ValidateIf((_object, value: unknown) => value !== undefined)
   @IsVndAmount()

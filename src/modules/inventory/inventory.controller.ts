@@ -1,5 +1,10 @@
+import { ApiErrors } from '../../common/http/api-errors.decorator';
+import { PaginationQueryDto } from '../../common/http/dto/pagination-query.dto';
+import { inventoryHistorySchema } from './inventory.openapi';
 import {
   Body,
+  Get,
+  Header,
   Controller,
   Param,
   Post,
@@ -20,23 +25,46 @@ import {
   AuthenticatedRequest,
 } from '../auth/access-token.guard';
 import { Roles, RolesGuard } from '../auth/roles.guard';
-import { ProductErrors } from '../products/products.openapi';
 import { StockAdjustmentDto } from './inventory.dto';
 import { InventoryService } from './inventory.service';
 
 @Controller('products')
 @ApiTags('inventory')
 @ApiBearerAuth()
-@ProductErrors()
 @UseGuards(AccessTokenGuard, RolesGuard)
 @Roles('ADMIN')
 export class InventoryController {
   constructor(private readonly inventory: InventoryService) {}
-  @Post(':id/stock-adjustments')
+  @Get(':id/stock-adjustments')
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'ADMIN atomic audited stock delta',
+    summary: 'View stock adjustment history (ADMIN)',
     description:
-      'Locks/reloads product, checks integer range/nonnegative result and writes stock plus audit in one transaction. Inactive targets permitted. Each successful request is additive, not idempotent; repeat creates another audit.',
+      'Lists manual stock changes for this product, including who made each change, the reason, and stock before and after. Includes inactive products. Newest changes appear first; changes made at the same time are ordered by ID, descending. Use offset and limit for pagination. This list does not include stock changes from orders, cancellations or expired reservations.',
+  })
+  @ApiErrors('VALIDATION_FAILED', 'UNAUTHORIZED', 'FORBIDDEN', 'NOT_FOUND')
+  @ApiResponse({ status: 200, schema: inventoryHistorySchema })
+  history(
+    @Param() params: UuidParamDto,
+    @Query() query: PaginationQueryDto,
+    @Body(EmptyBodyPipe) body: Record<string, never>,
+  ) {
+    void body;
+    return this.inventory.history(params.id, query);
+  }
+
+  @Post(':id/stock-adjustments')
+  @ApiErrors(
+    'VALIDATION_FAILED',
+    'UNAUTHORIZED',
+    'FORBIDDEN',
+    'NOT_FOUND',
+    'STOCK_RANGE_EXCEEDED',
+  )
+  @ApiOperation({
+    summary: 'Adjust product stock (ADMIN)',
+    description:
+      'Send quantityDelta and a reason. For example, 5 adds five units and -2 removes two units. The result cannot be negative or exceed 2147483647. Inactive products can also be adjusted. Each successful request saves a history entry. Sending the same request again applies the change again.',
   })
   @ApiResponse({
     status: 201,
@@ -67,7 +95,8 @@ export class InventoryController {
   })
   @ApiResponse({
     status: 409,
-    description: 'STOCK_RANGE_EXCEEDED',
+    description:
+      'STOCK_RANGE_EXCEEDED: The resulting stock would be negative or too large.',
     schema: { $ref: '#/components/schemas/ErrorEnvelope' },
   })
   adjust(

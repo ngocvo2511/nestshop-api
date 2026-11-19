@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { ProductsController } from './products.controller';
+import { AdminProductsController } from './admin-products.controller';
 import { ProductsService } from './products.service';
 import { ProductImagesController } from './product-images.controller';
 import { ProductImagesService } from './product-images.service';
@@ -10,7 +11,11 @@ import { SafeJsonLogger } from '../../common/logging/safe-json.logger';
 
 @Module({
   imports: [AuthModule],
-  controllers: [ProductsController, ProductImagesController],
+  controllers: [
+    ProductsController,
+    ProductImagesController,
+    AdminProductsController,
+  ],
   providers: [
     ProductsService,
     ProductImagesService,

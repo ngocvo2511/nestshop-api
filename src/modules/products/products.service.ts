@@ -42,7 +42,10 @@ export class ProductsService {
     return this.source;
   }
 
-  async list(query: ProductQueryDto) {
+  async list(
+    query: ProductQueryDto,
+    status: 'all' | 'active' | 'inactive' = 'active',
+  ) {
     if (
       query.minPriceVnd !== undefined &&
       query.maxPriceVnd !== undefined &&
@@ -51,10 +54,9 @@ export class ProductsService {
       throw new ApiError('VALIDATION_FAILED', [
         { field: 'minPriceVnd', rules: ['priceRange'] },
       ]);
-    const builder = this.db()
-      .getRepository(Product)
-      .createQueryBuilder('p')
-      .where('p.isActive = :active', { active: true });
+    const builder = this.db().getRepository(Product).createQueryBuilder('p');
+    if (status !== 'all')
+      builder.where('p.isActive = :active', { active: status === 'active' });
     if (query.q !== undefined)
       builder.andWhere(
         "(p.name ILIKE :search ESCAPE '!' OR p.description ILIKE :search ESCAPE '!')",
@@ -79,10 +81,10 @@ export class ProductsService {
     };
   }
 
-  async detail(id: string) {
+  async detail(id: string, includeInactive = false) {
     const product = await this.db()
       .getRepository(Product)
-      .findOneBy({ id, isActive: true });
+      .findOneBy({ id, ...(includeInactive ? {} : { isActive: true }) });
     if (!product) throw new ApiError('NOT_FOUND');
     return publicProduct(product);
   }

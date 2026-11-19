@@ -57,7 +57,8 @@ export function configureOpenApi(app: INestApplication): void {
       const roles = !authenticated
         ? []
         : path.includes('/admin/') ||
-            (path.includes('/products') && method !== 'get')
+            (path.includes('/products') && method !== 'get') ||
+            path.endsWith('/stock-adjustments')
           ? ['ADMIN']
           : path.includes('/staff/')
             ? ['STAFF', 'ADMIN']
@@ -89,8 +90,11 @@ export function configureOpenApi(app: INestApplication): void {
       operation.responses ??= {};
       if (!provider) {
         for (const [status, description] of [
-          ['500', 'Safe INTERNAL_ERROR; no SQL/stack/secret disclosure'],
-          ['503', 'SERVICE_UNAVAILABLE / PAYMENT_UNAVAILABLE where applicable'],
+          ['500', 'INTERNAL_ERROR: The server could not complete the request.'],
+          [
+            '503',
+            'The service is temporarily unavailable. Check error.code for the reason and try again later.',
+          ],
         ])
           operation.responses[status] ??= { description };
         for (const [status, response] of Object.entries(operation.responses)) {

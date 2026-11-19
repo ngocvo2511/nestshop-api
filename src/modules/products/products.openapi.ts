@@ -1,5 +1,3 @@
-import { applyDecorators } from '@nestjs/common';
-import { ApiResponse } from '@nestjs/swagger';
 import { SchemaObject } from '@nestjs/swagger/dist/interfaces/open-api-spec.interface';
 
 const product: SchemaObject = {
@@ -24,7 +22,7 @@ const product: SchemaObject = {
       type: 'string',
       pattern: '^[1-9][0-9]{0,18}$',
       description:
-        'Integer VND, at most 9223372036854775807; never a JSON number.',
+        'Price in whole VND, returned as a string, such as "350000". Maximum: 9223372036854775807.',
     },
     stockAvailable: { type: 'integer', minimum: 0, maximum: 2147483647 },
     isActive: { type: 'boolean' },
@@ -32,7 +30,7 @@ const product: SchemaObject = {
       type: 'string',
       nullable: true,
       description:
-        'Relative active-only image URL; null when no image is assigned.',
+        'Image path relative to the API host. Only active product images are public. null means no image has been uploaded.',
     },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
@@ -62,20 +60,4 @@ export function productSchema(list = false): SchemaObject {
         : product,
     },
   };
-}
-export function ProductErrors() {
-  return applyDecorators(
-    ...[400, 401, 403, 404, 500, 503].map((status) =>
-      ApiResponse({
-        status,
-        description:
-          status === 400
-            ? 'VALIDATION_FAILED / EMPTY_UPDATE'
-            : status === 404
-              ? 'NOT_FOUND; missing/inactive share the public response'
-              : 'Safe catalog error',
-        schema: { $ref: '#/components/schemas/ErrorEnvelope' },
-      }),
-    ),
-  );
 }

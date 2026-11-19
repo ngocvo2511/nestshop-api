@@ -294,6 +294,7 @@ function registerAdminManagementCases(getSource, appDatabase) {
           'application/json'
         ].examples.INVALID_CURRENT_PASSWORD.value.error.code,
       ).toBe('INVALID_CURRENT_PASSWORD');
+      expect(JSON.stringify(spec)).not.toContain('Safe catalog error');
       expect(
         spec.paths['/api/v1/auth/refresh'].post.responses['200'].content[
           'application/json'

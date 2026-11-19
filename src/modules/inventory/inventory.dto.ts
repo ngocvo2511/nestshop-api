@@ -11,7 +11,8 @@ export class StockAdjustmentDto {
     type: Number,
     minimum: -2147483648,
     maximum: 2147483647,
-    description: 'Nonzero JSON integer delta; never a replacement stock value.',
+    description:
+      'How many units to add or remove. Use a whole number other than zero: 5 adds five units; -2 removes two. This is not the new total stock.',
   })
   @IsInt()
   @Min(-2147483648)

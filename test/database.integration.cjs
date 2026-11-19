@@ -1,3 +1,4 @@
+const { registerAdminCatalogCases } = require('./admin-catalog.cases.cjs');
 const {
   registerAdminManagementCases,
 } = require('./admin-management.cases.cjs');
@@ -1184,3 +1185,5 @@ registerPaymentCases(() => source, appDatabase);
 registerCallbackCases(() => source, appDatabase);
 
 registerAdminManagementCases(() => source, appDatabase);
+
+registerAdminCatalogCases(() => source, appDatabase);

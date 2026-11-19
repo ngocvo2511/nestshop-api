@@ -1,3 +1,4 @@
+import { ApiErrors } from '../../common/http/api-errors.decorator';
 import {
   Body,
   Controller,
@@ -23,20 +24,20 @@ import {
   PatchProductDto,
   ProductQueryDto,
 } from './products.dto';
-import { ProductErrors, productSchema } from './products.openapi';
+import { productSchema } from './products.openapi';
 import { ProductsService } from './products.service';
 
 @ApiTags('products')
-@ProductErrors()
 @Controller('products')
 export class ProductsController {
   constructor(private readonly products: ProductsService) {}
 
   @Get()
+  @ApiErrors('VALIDATION_FAILED')
   @ApiOperation({
-    summary: 'Public active-only catalog',
+    summary: 'List products on sale',
     description:
-      'Literal case-insensitive name/description substring; inclusive VND bounds. Sort allowlist only, default name ASC, matching id tie-break direction. Total uses the same filters. No inactive visibility override for Admin.',
+      'Lists active products only; no login is required. Search by name or description, ignoring letter case. Price filters include the specified minimum and maximum. Products are sorted by name by default; use sort to change the order. Ties are ordered by product ID in the same direction. total counts all products matching your filters. ADMIN accounts should use /api/v1/admin/products to include inactive products.',
   })
   @ApiResponse({ status: 200, schema: productSchema(true) })
   list(
@@ -48,10 +49,11 @@ export class ProductsController {
   }
 
   @Get(':id')
+  @ApiErrors('VALIDATION_FAILED', 'NOT_FOUND')
   @ApiOperation({
-    summary: 'Public active product detail',
+    summary: 'View a product on sale',
     description:
-      'Missing and inactive both return safe404 NOT_FOUND for every caller.',
+      'No login is required. Returns 404 if the product does not exist or is no longer on sale.',
   })
   @ApiResponse({ status: 200, schema: productSchema() })
   detail(
@@ -65,13 +67,14 @@ export class ProductsController {
   }
 
   @Post()
+  @ApiErrors('VALIDATION_FAILED', 'UNAUTHORIZED', 'FORBIDDEN')
   @UseGuards(AccessTokenGuard, RolesGuard)
   @Roles('ADMIN')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'ADMIN create catalog product with initial stock',
+    summary: 'Create a product (ADMIN)',
     description:
-      'Positive integer VND decimal string, JSON integer initialStock 0..2147483647. Reject unknown/stockAvailable/imagePath/imageUrl/role/id fields. isActive defaults true. No inventory adjustment audit on creation.',
+      'Send the product name, priceVnd and initialStock. Send prices as strings, such as "350000", and stock as a whole number, such as 10. initialStock must be between 0 and 2147483647. isActive defaults to true. Upload the image separately using the product image endpoint. Initial stock is not recorded as a manual stock adjustment.',
   })
   @ApiResponse({ status: 201, schema: productSchema() })
   create(
@@ -83,13 +86,20 @@ export class ProductsController {
   }
 
   @Patch(':id')
+  @ApiErrors(
+    'VALIDATION_FAILED',
+    'EMPTY_UPDATE',
+    'UNAUTHORIZED',
+    'FORBIDDEN',
+    'NOT_FOUND',
+  )
   @UseGuards(AccessTokenGuard, RolesGuard)
   @Roles('ADMIN')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'ADMIN update catalog fields only',
+    summary: 'Update a product or change its sale status (ADMIN)',
     description:
-      'Nonempty name/description/priceVnd/isActive subset. Only description nullable. May target inactive products. Reject all stock/image/protected fields. Stock and image reference are preserved; stock adjustments and images use their dedicated audited/validated routes.',
+      'Send at least one of name, description, priceVnd or isActive. Set description=null to clear it. Set isActive=false to stop selling, or true to resume sales; this also works for inactive products. To change stock or the image, use the separate stock adjustment or image endpoint. Other fields are not accepted.',
   })
   @ApiResponse({ status: 200, schema: productSchema() })
   patch(

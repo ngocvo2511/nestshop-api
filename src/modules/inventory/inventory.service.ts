@@ -5,10 +5,25 @@ import { databaseNow, transaction } from '../../database/transaction';
 import { Product } from '../products/entities/product.entity';
 import { InventoryAdjustmentAudit } from './entities/inventory-adjustment-audit.entity';
 import { StockAdjustmentDto } from './inventory.dto';
+import { PaginationQueryDto } from '../../common/http/dto/pagination-query.dto';
 
 @Injectable()
 export class InventoryService {
   constructor(@Inject(DataSource) private readonly source: DataSource | null) {}
+  async history(productId: string, query: PaginationQueryDto) {
+    if (!this.source) throw new ApiError('SERVICE_UNAVAILABLE');
+    if (!(await this.source.getRepository(Product).existsBy({ id: productId })))
+      throw new ApiError('NOT_FOUND');
+    const [items, total] = await this.source
+      .getRepository(InventoryAdjustmentAudit)
+      .findAndCount({
+        where: { productId },
+        order: { createdAt: 'DESC', id: 'DESC' },
+        skip: query.offset,
+        take: query.limit,
+      });
+    return { items, offset: query.offset, limit: query.limit, total };
+  }
   async adjust(
     actorUserId: string,
     productId: string,

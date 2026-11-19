@@ -45,7 +45,7 @@ JSON responses use `{success:true,data,meta:{correlationId}}` or `{success:false
 
 Money uses integer VND decimal strings at API boundaries and BigInt arithmetic. Authenticated mutations use JWT roles; access JWT claims remain valid until expiry after logout, password change or role change. Refresh tokens are opaque, stored hashed and rotated atomically with replay revocation.
 
-## Account management
+## Account and catalog management
 
 Login returns tokens plus a basic user (`id`, `email`, `role`, `fullName`). Refresh returns only the new tokens and their lifetimes; it no longer returns `user`. Fetch `GET /api/v1/users/me` for a full profile. Clients using the old login/refresh profile fields must update their response handling.
 
@@ -54,10 +54,15 @@ ADMIN endpoints:
 - `POST /api/v1/admin/staff`: create a STAFF account with email, password and optional fullName/phoneNumber. Role is fixed; no session is created.
 - `GET /api/v1/admin/users/roles?role=STAFF`: list staff, including inactive staff.
 - `PATCH /api/v1/admin/staff/:id/status` with `{"isActive":false}` or `true`: disable or enable STAFF only; accounts and historical references are retained.
+- `GET /api/v1/admin/products?status=inactive`: management catalog; status supports `all`, `active`, `inactive`, default `all`. Supports the public catalog's search, price, sort and pagination parameters.
+- `GET /api/v1/admin/products/:id`: product details including inactive products.
+- `GET /api/v1/products/:id/stock-adjustments?offset=0&limit=20`: manual adjustment audit, newest first (createdAt/id), including inactive products. This is not a ledger of order reservation/cancellation/expiry movements.
 
 Disabling a STAFF account revokes refresh sessions (ordinary LOGOUT reason) in the same transaction and blocks subsequent bearer-authenticated requests, including previously issued access tokens. Already-running requests may finish. Enabling does not restore refresh tokens; unexpired access tokens can be used again. Active-account status is checked against PostgreSQL on each authenticated request; role claims still remain valid until expiry after a role change.
 
+Products are removed from sale with `PATCH /api/v1/products/:id` and `{"isActive":false}`, and restored with `true`. Public catalog/detail/image routes remain active-only. There is no physical product/account deletion API. Product image upload remains a separate `POST /api/v1/products/:id/image` multipart request; clients can retry an image upload after saving product JSON.
 
+Swagger account, product, image and inventory operations document applicable error codes and example responses per operation.
 
 ## Initial administrator
 

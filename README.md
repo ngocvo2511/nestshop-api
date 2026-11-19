@@ -45,6 +45,20 @@ JSON responses use `{success:true,data,meta:{correlationId}}` or `{success:false
 
 Money uses integer VND decimal strings at API boundaries and BigInt arithmetic. Authenticated mutations use JWT roles; access JWT claims remain valid until expiry after logout, password change or role change. Refresh tokens are opaque, stored hashed and rotated atomically with replay revocation.
 
+## Account management
+
+Login returns tokens plus a basic user (`id`, `email`, `role`, `fullName`). Refresh returns only the new tokens and their lifetimes; it no longer returns `user`. Fetch `GET /api/v1/users/me` for a full profile. Clients using the old login/refresh profile fields must update their response handling.
+
+ADMIN endpoints:
+
+- `POST /api/v1/admin/staff`: create a STAFF account with email, password and optional fullName/phoneNumber. Role is fixed; no session is created.
+- `GET /api/v1/admin/users/roles?role=STAFF`: list staff, including inactive staff.
+- `PATCH /api/v1/admin/staff/:id/status` with `{"isActive":false}` or `true`: disable or enable STAFF only; accounts and historical references are retained.
+
+Disabling a STAFF account revokes refresh sessions (ordinary LOGOUT reason) in the same transaction and blocks subsequent bearer-authenticated requests, including previously issued access tokens. Already-running requests may finish. Enabling does not restore refresh tokens; unexpired access tokens can be used again. Active-account status is checked against PostgreSQL on each authenticated request; role claims still remain valid until expiry after a role change.
+
+
+
 ## Initial administrator
 
 Set `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` through the local process environment, then run `npm run admin:setup` after build/migration. Passwords must contain 12-128 characters without surrounding whitespace or control characters. Setup never promotes an existing non-admin or overwrites an existing administrator. Clear the setup variables afterward.

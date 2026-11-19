@@ -790,7 +790,7 @@ function registerAccountCases(getSource, appDatabase) {
       const refreshed = await request('POST', '/auth/refresh', {
         refreshToken: target.pair.refreshToken,
       });
-      expect(refreshed.body.data.user.role).toBe('CUSTOMER');
+      expect(refreshed.body.data).not.toHaveProperty('user');
       expect(
         (
           await request(

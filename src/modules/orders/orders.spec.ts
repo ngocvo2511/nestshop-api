@@ -114,7 +114,11 @@ describe('checkout HTTP boundary and ownership', () => {
       .useValue({ checkout })
       .useMocker((token) =>
         token === DataSource
-          ? {}
+          ? {
+              getRepository: () => ({
+                findOne: () => Promise.resolve({ isActive: true }),
+              }),
+            }
           : token === ConfigService
             ? new ConfigService({
                 jwt: {

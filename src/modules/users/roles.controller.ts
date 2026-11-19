@@ -1,3 +1,4 @@
+import { ApiErrors } from '../../common/http/api-errors.decorator';
 import {
   Body,
   Controller,
@@ -24,15 +25,10 @@ import {
 import { Roles, RolesGuard } from '../auth/roles.guard';
 import { RoleQueryDto, RolePatchDto } from './users.dto';
 import { UsersService } from './users.service';
-import {
-  AccountErrors,
-  rolesListSchema,
-  roleChangeSchema,
-} from './users.openapi';
+import { rolesListSchema, roleChangeSchema } from './users.openapi';
 
 @ApiTags('admin roles')
 @ApiBearerAuth()
-@AccountErrors()
 @UseGuards(AccessTokenGuard, RolesGuard)
 @Roles('ADMIN')
 @Controller('admin/users')
@@ -40,11 +36,12 @@ export class RolesController {
   constructor(private readonly users: UsersService) {}
 
   @Get('roles')
+  @ApiErrors('VALIDATION_FAILED', 'UNAUTHORIZED', 'FORBIDDEN')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'ADMIN role assignment list',
+    summary: 'List user roles (ADMIN)',
     description:
-      'Allowlisted pagination and optional role filter. Fixed createdAt DESC, id DESC. Safe identity/role fields only; no credentials.',
+      'Lists user IDs, emails, roles and active status. Optionally filter by role. Use offset and limit for pagination. Newest accounts appear first; accounts created at the same time are ordered by ID, descending. Passwords are never returned.',
   })
   @ApiResponse({ status: 200, schema: rolesListSchema })
   list(
@@ -56,11 +53,12 @@ export class RolesController {
   }
 
   @Patch(':id/role')
+  @ApiErrors('VALIDATION_FAILED', 'UNAUTHORIZED', 'FORBIDDEN', 'NOT_FOUND')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'ADMIN audited role assignment',
+    summary: 'Change a user role (ADMIN)',
     description:
-      'Target locked; role and audit commit atomically. Same role returns changed:false,auditId:null and no audit/write. Actor comes only from verified JWT. Existing JWT role claims stay authoritative until expiry, including a demoted Admin; new login/refresh reads current role. No last-admin/deletion/deactivation policy added.',
+      'Set role to CUSTOMER, STAFF or ADMIN. Each actual change is saved in the role history. Sending the current role returns changed=false and auditId=null. Existing access tokens keep their previous role until they expire; login and refresh use the new role. There is no protection against removing the last ADMIN role. To disable a STAFF account instead, use PATCH /api/v1/admin/staff/:id/status.',
   })
   @ApiResponse({ status: 200, schema: roleChangeSchema })
   change(

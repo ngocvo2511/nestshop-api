@@ -24,7 +24,10 @@ const user: SchemaObject = {
     updatedAt: { type: 'string', format: 'date-time' },
   },
 };
-export function authSuccessSchema(pair: boolean): SchemaObject {
+export function authSuccessSchema(
+  pair: boolean,
+  includeUser = true,
+): SchemaObject {
   return {
     type: 'object',
     required: ['success', 'data', 'meta'],
@@ -39,7 +42,7 @@ export function authSuccessSchema(pair: boolean): SchemaObject {
             type: 'object',
             additionalProperties: false,
             required: [
-              'user',
+              ...(includeUser ? ['user'] : []),
               'accessToken',
               'tokenType',
               'expiresIn',
@@ -47,7 +50,21 @@ export function authSuccessSchema(pair: boolean): SchemaObject {
               'refreshExpiresAt',
             ],
             properties: {
-              user,
+              ...(includeUser
+                ? {
+                    user: {
+                      type: 'object' as const,
+                      additionalProperties: false,
+                      required: ['id', 'email', 'role', 'fullName'],
+                      properties: {
+                        id: user.properties!.id,
+                        email: user.properties!.email,
+                        role: user.properties!.role,
+                        fullName: user.properties!.fullName,
+                      },
+                    },
+                  }
+                : {}),
               accessToken: { type: 'string' },
               tokenType: { type: 'string', enum: ['Bearer'] },
               expiresIn: { type: 'integer' },

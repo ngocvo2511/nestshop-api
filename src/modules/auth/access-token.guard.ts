@@ -1,4 +1,11 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
+import { DataSource } from 'typeorm';
+import { User } from '../users/entities/user.entity';
 import { Request } from 'express';
 import { ApiError } from '../../common/http/api-error';
 import { AccessTokenService } from './access-token.service';
@@ -9,7 +16,10 @@ export type AuthenticatedRequest = Request & {
 
 @Injectable()
 export class AccessTokenGuard implements CanActivate {
-  constructor(private readonly tokens: AccessTokenService) {}
+  constructor(
+    private readonly tokens: AccessTokenService,
+    @Inject(DataSource) private readonly source: DataSource | null,
+  ) {}
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const authorization = request.headers.authorization;
@@ -20,6 +30,12 @@ export class AccessTokenGuard implements CanActivate {
     )
       throw new ApiError('UNAUTHORIZED');
     request.identity = await this.tokens.verify(authorization.slice(7));
+    if (!this.source) throw new ApiError('SERVICE_UNAVAILABLE');
+    const user = await this.source.getRepository(User).findOne({
+      where: { id: request.identity.sub },
+      select: { id: true, isActive: true },
+    });
+    if (!user?.isActive) throw new ApiError('UNAUTHORIZED');
     return true;
   }
 }

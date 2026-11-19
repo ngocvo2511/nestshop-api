@@ -1,3 +1,6 @@
+const {
+  registerAdminManagementCases,
+} = require('./admin-management.cases.cjs');
 const { randomBytes, randomUUID, scryptSync } = require('node:crypto');
 const { Buffer } = require('node:buffer');
 const { TextEncoder } = require('node:util');
@@ -1002,7 +1005,9 @@ describe('Day 4 auth API on real PostgreSQL', () => {
     expect(rotated.status).toBe(200);
     expect(rotated.cache).toBe('no-store');
     const successor = rotated.body.data;
-    expect(successor.user.role).toBe('STAFF');
+    expect(successor).not.toHaveProperty('user');
+    const { decodeJwt } = await import('jose');
+    expect(decodeJwt(successor.accessToken).role).toBe('STAFF');
     expect(hash(successor.refreshToken)).not.toBe(hash(pair.refreshToken));
     const before = await rows(user.id);
     const old = before.find(
@@ -1177,3 +1182,5 @@ registerFulfillmentCases(() => source, appDatabase);
 registerPaymentCases(() => source, appDatabase);
 
 registerCallbackCases(() => source, appDatabase);
+
+registerAdminManagementCases(() => source, appDatabase);

@@ -73,7 +73,21 @@ export class AuthService {
       const valid = await verifyPassword(dto.password, user?.passwordHash);
       if (!user || !valid || !user.isActive)
         throw new ApiError('INVALID_CREDENTIALS');
-      return this.issue(manager, user, randomUUID(), await this.now(manager));
+      const tokens = await this.issue(
+        manager,
+        user,
+        randomUUID(),
+        await this.now(manager),
+      );
+      return {
+        ...tokens,
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          fullName: user.fullName,
+        },
+      };
     });
   }
 
@@ -259,7 +273,6 @@ export class AuthService {
       }),
     );
     return {
-      user: publicUser(user),
       accessToken,
       tokenType: 'Bearer',
       expiresIn: cfg.accessTtlSeconds,

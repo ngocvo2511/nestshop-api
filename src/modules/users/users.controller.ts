@@ -1,3 +1,4 @@
+import { ApiErrors } from '../../common/http/api-errors.decorator';
 import {
   Body,
   Controller,
@@ -24,11 +25,10 @@ import {
 import { AuthService } from '../auth/auth.service';
 import { ProfilePatchDto, ChangePasswordDto } from './users.dto';
 import { UsersService } from './users.service';
-import { AccountErrors, profileSchema } from './users.openapi';
+import { profileSchema } from './users.openapi';
 
 @ApiTags('own account')
 @ApiBearerAuth()
-@AccountErrors()
 @UseGuards(AccessTokenGuard)
 @Controller('users/me')
 export class UsersController {
@@ -38,11 +38,12 @@ export class UsersController {
   ) {}
 
   @Get()
+  @ApiErrors('VALIDATION_FAILED', 'UNAUTHORIZED', 'NOT_FOUND')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Read own profile',
+    summary: 'View my profile',
     description:
-      'All authenticated roles. Identity only from verified JWT sub. No arbitrary userId, query or body.',
+      'Available to any logged-in user. Returns the profile linked to your access token. Do not send a user ID, request body or query parameters.',
   })
   @ApiResponse({ status: 200, schema: profileSchema })
   profile(
@@ -56,11 +57,12 @@ export class UsersController {
   }
 
   @Patch()
+  @ApiErrors('VALIDATION_FAILED', 'EMPTY_UPDATE', 'UNAUTHORIZED', 'NOT_FOUND')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Update own full name/phone',
+    summary: 'Update my profile',
     description:
-      'Nonempty subset of fullName/phoneNumber; null clears. Reject role/email/active/password/hash/avatar/userId. No avatar or shipping mutation.',
+      'Send fullName, phoneNumber, or both. Use null to clear either field. Email, role, account status and password cannot be changed here. Use the password endpoint to change your password.',
   })
   @ApiResponse({ status: 200, schema: profileSchema })
   patch(
@@ -73,16 +75,18 @@ export class UsersController {
   }
 
   @Post('password')
+  @ApiErrors('VALIDATION_FAILED', 'INVALID_CURRENT_PASSWORD', 'UNAUTHORIZED')
   @HttpCode(204)
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Change own password and revoke every refresh family atomically',
+    summary: 'Change my password',
     description:
-      'Verify current password under the shared user lock. Different policy-valid replacement required. PASSWORD_CHANGE revocation; prior LOGOUT/PASSWORD_CHANGE timestamps/reasons remain intact. Existing access JWTs remain stateless until expiry; no immediate access revocation.',
+      'Send currentPassword and a different newPassword that meets the password rules. A successful change revokes all your refresh sessions. Existing access tokens remain valid until they expire, as long as your account is active.',
   })
   @ApiResponse({
     status: 204,
-    description: 'Password and refresh revocation committed. No body.',
+    description:
+      'Password changed and refresh sessions revoked. The response has no body.',
   })
   password(
     @Req() request: AuthenticatedRequest,

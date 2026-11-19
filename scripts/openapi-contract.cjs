@@ -14,6 +14,8 @@ const routes = {
   'POST /api/v1/users/me/password': ['CUSTOMER', 'STAFF', 'ADMIN'],
   'GET /api/v1/admin/users/roles': ['ADMIN'],
   'PATCH /api/v1/admin/users/{id}/role': ['ADMIN'],
+  'POST /api/v1/admin/staff': ['ADMIN'],
+  'PATCH /api/v1/admin/staff/{id}/status': ['ADMIN'],
   'GET /api/v1/products': [],
   'GET /api/v1/products/{id}': [],
   'POST /api/v1/products': ['ADMIN'],
@@ -65,7 +67,7 @@ function auditOpenApi(spec) {
           assert.equal(response.content, undefined, key + ' empty204');
       }
       if (roles.length)
-        for (const status of ['401', '403'])
+        for (const status of roles.length === 3 ? ['401'] : ['401', '403'])
           assert.ok(op.responses[status], key + ' ' + status);
       if (!provider)
         for (const status of ['500', '503'])

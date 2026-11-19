@@ -1,6 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsIn, IsOptional, Matches, ValidateBy } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  Matches,
+  ValidateBy,
+} from 'class-validator';
+import { RegisterDto } from '../auth/auth.dto';
 import { PaginationQueryDto } from '../../common/http/dto/pagination-query.dto';
 import {
   IsSafeText,
@@ -8,6 +15,17 @@ import {
 } from '../../common/validation/contract-validators';
 import { validPassword } from '../auth/password';
 import { accountRoles, AccountRole } from '../auth/roles.guard';
+
+export class CreateStaffDto extends RegisterDto {}
+
+export class StaffStatusDto {
+  @ApiProperty({
+    description:
+      'Set false to disable the staff account and revoke refresh tokens. Set true to enable it again.',
+  })
+  @IsBoolean()
+  isActive!: boolean;
+}
 
 export class ProfilePatchDto {
   @ApiPropertyOptional({ type: String, maxLength: 200, nullable: true })
@@ -31,7 +49,7 @@ export class ChangePasswordDto {
   @ApiProperty({
     minLength: 12,
     maxLength: 128,
-    description: 'Exact current password, never normalized.',
+    description: 'Your current password, entered exactly as used to log in.',
   })
   @ValidateBy({
     name: 'passwordPolicy',
@@ -42,7 +60,8 @@ export class ChangePasswordDto {
   @ApiProperty({
     minLength: 12,
     maxLength: 128,
-    description: 'Policy-valid password different from currentPassword.',
+    description:
+      'Your new password. It must meet the password rules and differ from your current password.',
   })
   @ValidateBy({
     name: 'passwordPolicy',

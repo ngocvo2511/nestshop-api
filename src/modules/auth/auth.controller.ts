@@ -21,18 +21,18 @@ export class AuthController {
   @HttpCode(204)
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Revoke the supplied refresh family idempotently',
+    summary: 'Log out',
     description:
-      'JSON refreshToken only; no access JWT required. Unknown/expired/already revoked tokens return 204. A consumed predecessor can revoke its live family. Preserve prior revocation metadata; existing access JWTs remain valid until expiry.',
+      'Send the refreshToken in the JSON body. An access token is not required. This ends the session linked to that refresh token. An unknown, expired or already revoked token also returns 204. Existing access tokens remain usable until they expire, as long as the account is active.',
   })
   @ApiResponse({
     status: 204,
-    description:
-      'Family revoked with LOGOUT, or already unavailable. No response body.',
+    description: 'Logged out. The response has no body.',
   })
   @ApiResponse({
     status: 400,
-    description: 'VALIDATION_FAILED',
+    description:
+      'VALIDATION_FAILED: Check the request fields and their formats.',
     schema: { $ref: '#/components/schemas/ErrorEnvelope' },
   })
   logout(
@@ -46,19 +46,20 @@ export class AuthController {
   @Post('register')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Create an active CUSTOMER; no automatic session',
+    summary: 'Create a customer account',
     description:
-      'Email is trimmed/lowercased. Rejects protected/unknown fields. Never returns hashes.',
+      'Creates an active CUSTOMER account. You must log in separately to get tokens. Email addresses are trimmed and converted to lowercase. Do not send role or isActive.',
   })
   @ApiResponse({ status: 201, schema: authSuccessSchema(false) })
   @ApiResponse({
     status: 400,
-    description: 'VALIDATION_FAILED',
+    description:
+      'VALIDATION_FAILED: Check the request fields and their formats.',
     schema: { $ref: '#/components/schemas/ErrorEnvelope' },
   })
   @ApiResponse({
     status: 409,
-    description: 'EMAIL_IN_USE',
+    description: 'EMAIL_IN_USE: An account with this email already exists.',
     schema: { $ref: '#/components/schemas/ErrorEnvelope' },
   })
   register(
@@ -73,19 +74,20 @@ export class AuthController {
   @HttpCode(200)
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Sign in an active account',
+    summary: 'Log in',
     description:
-      'Generic INVALID_CREDENTIALS for unknown/inactive account or incorrect password. Lifetimes from environment; access JWT HS256, opaque refresh JSON transport.',
+      'Send your email and password. Returns access and refresh tokens, their expiry information, and basic user details. An incorrect password, unknown email or disabled account returns INVALID_CREDENTIALS.',
   })
   @ApiResponse({ status: 200, schema: authSuccessSchema(true) })
   @ApiResponse({
     status: 400,
-    description: 'VALIDATION_FAILED',
+    description: 'VALIDATION_FAILED: Check the email and password formats.',
     schema: { $ref: '#/components/schemas/ErrorEnvelope' },
   })
   @ApiResponse({
     status: 401,
-    description: 'INVALID_CREDENTIALS',
+    description:
+      'INVALID_CREDENTIALS: The email or password is incorrect, or the account is disabled.',
     schema: { $ref: '#/components/schemas/ErrorEnvelope' },
   })
   login(
@@ -100,19 +102,20 @@ export class AuthController {
   @HttpCode(200)
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Rotate a refresh token atomically',
+    summary: 'Get new tokens',
     description:
-      'Consumes before successor insert. Consumed replay commits whole-family revocation before 401 REFRESH_REPLAY. Concurrent loser can revoke winner successor; no grace period. LOGOUT/PASSWORD_CHANGE revocation remains ordinary INVALID_REFRESH_TOKEN. Stateless access JWTs remain valid until expiry.',
+      'Send a valid refreshToken to receive a new access token and refresh token. This response does not include a user profile; use GET /api/v1/users/me for that. Send each refresh token only once. Reusing a token that was already exchanged ends this session and returns REFRESH_REPLAY. Avoid sending multiple refresh requests at the same time. Tokens revoked by logout or a password change return INVALID_REFRESH_TOKEN.',
   })
-  @ApiResponse({ status: 200, schema: authSuccessSchema(true) })
+  @ApiResponse({ status: 200, schema: authSuccessSchema(true, false) })
   @ApiResponse({
     status: 400,
-    description: 'VALIDATION_FAILED',
+    description: 'VALIDATION_FAILED: The refreshToken format is invalid.',
     schema: { $ref: '#/components/schemas/ErrorEnvelope' },
   })
   @ApiResponse({
     status: 401,
-    description: 'INVALID_REFRESH_TOKEN / REFRESH_REPLAY',
+    description:
+      'INVALID_REFRESH_TOKEN: The token is invalid, expired or revoked. REFRESH_REPLAY: This token was already used; log in again.',
     schema: { $ref: '#/components/schemas/ErrorEnvelope' },
   })
   refresh(

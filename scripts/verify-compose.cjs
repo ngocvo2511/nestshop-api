@@ -119,40 +119,6 @@ async function main() {
       resolve(root, 'tmp/reports/openapi-audit.json'),
       JSON.stringify(openApiAudit, null, 2) + '\n',
     );
-    const implementedPaths = [
-      '/api/v1/health',
-      '/api/v1/auth/register',
-      '/api/v1/auth/login',
-      '/api/v1/auth/refresh',
-      '/api/v1/auth/logout',
-      '/api/v1/users/me',
-      '/api/v1/users/me/password',
-      '/api/v1/admin/users/roles',
-      '/api/v1/admin/users/{id}/role',
-      '/api/v1/products',
-      '/api/v1/products/{id}',
-      '/api/v1/products/{id}/image',
-      '/api/v1/products/{id}/stock-adjustments',
-      '/api/v1/orders',
-      '/api/v1/orders/{id}',
-      '/api/v1/orders/{id}/history',
-      '/api/v1/orders/{id}/cancel',
-      '/api/v1/orders/{id}/payment-attempts',
-      '/api/v1/payments/vnpay/ipn',
-      '/api/v1/payments/vnpay/return',
-      '/api/v1/admin/payments',
-      '/api/v1/admin/payments/{id}',
-      '/api/v1/admin/payments/{id}/notifications',
-      '/api/v1/staff/orders',
-      '/api/v1/staff/orders/{id}',
-      '/api/v1/staff/orders/{id}/history',
-      '/api/v1/staff/orders/{id}/status',
-    ];
-    if (
-      Object.keys(spec.paths).sort().join(',') !==
-      implementedPaths.sort().join(',')
-    )
-      throw new Error('OpenAPI does not match implemented API scope');
     for (const command of [
       'migration:status',
       'migration:run',

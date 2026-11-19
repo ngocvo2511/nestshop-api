@@ -26,7 +26,7 @@ export class LoginDto {
     minLength: 12,
     maxLength: 128,
     description:
-      '12–128 Unicode characters; no control characters or surrounding whitespace. Never normalized.',
+      'Use 12 to 128 characters. Do not add spaces at the start or end, line breaks or control characters. Passwords are used exactly as entered.',
   })
   @ValidateBy({
     name: 'passwordPolicy',
@@ -58,7 +58,7 @@ export class RefreshDto {
     minLength: 43,
     maxLength: 43,
     description:
-      'Opaque canonical base64url encoding of 32 random bytes; JSON body only.',
+      'Copy the refreshToken returned by login or refresh. Send it unchanged in the JSON body.',
   })
   @Matches(/^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$/)
   refreshToken!: string;

@@ -150,7 +150,11 @@ describe('auth HTTP validation and verified identity', () => {
         token === ConfigService
           ? new ConfigService({ jwt: cfg })
           : token === DataSource
-            ? {}
+            ? {
+                getRepository: () => ({
+                  findOne: () => Promise.resolve({ id, isActive: true }),
+                }),
+              }
             : undefined,
       )
       .compile();
@@ -309,7 +313,7 @@ describe('auth HTTP validation and verified identity', () => {
       ]),
     );
     expect(JSON.stringify(spec.paths['/api/v1/auth/refresh'])).toContain(
-      'no grace period',
+      'Send each refresh token only once.',
     );
   });
 

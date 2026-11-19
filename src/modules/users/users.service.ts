@@ -1,10 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { DataSource } from 'typeorm';
+import { DataSource, QueryFailedError, Not } from 'typeorm';
+import { RefreshToken } from '../auth/entities/refresh-token.entity';
+import { hashPassword } from '../auth/password';
 import { ApiError } from '../../common/http/api-error';
 import { transaction, databaseNow } from '../../database/transaction';
 import { User } from './entities/user.entity';
 import { RoleChangeAudit } from './entities/role-change-audit.entity';
-import { ProfilePatchDto, RoleQueryDto } from './users.dto';
+import { CreateStaffDto, ProfilePatchDto, RoleQueryDto } from './users.dto';
 import { publicUser, roleAssignment } from './user-public';
 import { AccountRole } from '../auth/roles.guard';
 
@@ -15,6 +17,57 @@ export class UsersService {
   private db(): DataSource {
     if (!this.source) throw new ApiError('SERVICE_UNAVAILABLE');
     return this.source;
+  }
+
+  async createStaff(dto: CreateStaffDto) {
+    const passwordHash = await hashPassword(dto.password);
+    try {
+      return await transaction(this.source, async (manager) => {
+        const user = manager.create(User, {
+          email: dto.email,
+          passwordHash,
+          role: 'STAFF',
+          isActive: true,
+          fullName: dto.fullName ?? null,
+          phoneNumber: dto.phoneNumber ?? null,
+        });
+        await manager.insert(User, user);
+        return publicUser(user);
+      });
+    } catch (error) {
+      if (
+        error instanceof QueryFailedError &&
+        (error.driverError as { code?: string; constraint?: string }).code ===
+          '23505' &&
+        (error.driverError as { constraint?: string }).constraint ===
+          'users_email_key'
+      )
+        throw new ApiError('EMAIL_IN_USE');
+      throw error;
+    }
+  }
+
+  async setStaffActive(id: string, isActive: boolean) {
+    return transaction(this.source, async (manager) => {
+      const user = await manager
+        .createQueryBuilder(User, 'u')
+        .where('u.id=:id', { id })
+        .setLock('pessimistic_write')
+        .getOne();
+      if (!user || user.role !== 'STAFF') throw new ApiError('NOT_FOUND');
+      const now = await databaseNow(manager);
+      if (!isActive)
+        await manager.update(
+          RefreshToken,
+          { userId: id, status: Not('REVOKED') },
+          { status: 'REVOKED', revokedAt: now, revocationReason: 'LOGOUT' },
+        );
+      if (user.isActive !== isActive) {
+        await manager.update(User, { id }, { isActive, updatedAt: now });
+        Object.assign(user, { isActive, updatedAt: now });
+      }
+      return publicUser(user);
+    });
   }
 
   async profile(userId: string) {

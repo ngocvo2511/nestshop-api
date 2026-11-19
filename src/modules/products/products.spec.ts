@@ -82,7 +82,11 @@ describe('catalog HTTP validation, routing and roles', () => {
         token === ConfigService
           ? new ConfigService(config)
           : token === DataSource
-            ? {}
+            ? {
+                getRepository: () => ({
+                  findOne: () => Promise.resolve({ isActive: true }),
+                }),
+              }
             : undefined,
       )
       .compile();

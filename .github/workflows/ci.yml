@@ -33,9 +33,10 @@ jobs:
     env:
       TEST_DB_SERVICE: 'true'
       TEST_DB_HOST: 127.0.0.1
-      TEST_DB_PORT: ${{ job.services.postgres.ports[5432] }}
       TEST_DB_PASSWORD: ci-only-disposable-postgres-fixture
     steps:
+      - name: Configure disposable database port
+        run: echo "TEST_DB_PORT=${{ job.services.postgres.ports[5432] }}" >> "$GITHUB_ENV"
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           persist-credentials: false

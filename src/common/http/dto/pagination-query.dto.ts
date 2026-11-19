@@ -15,6 +15,8 @@ export class PaginationQueryDto {
     default: 0,
     minimum: 0,
     maximum: 1000000,
+    description:
+      'Number of matching records to skip. Default: 0. For example, use offset=20 with limit=20 to get the second page. Maximum: 1000000.',
   })
   @Transform(({ value }: { value: unknown }) => queryInteger(value))
   @IsInt()
@@ -22,7 +24,14 @@ export class PaginationQueryDto {
   @Max(1000000)
   offset = 0;
 
-  @ApiPropertyOptional({ type: Number, default: 20, minimum: 1, maximum: 100 })
+  @ApiPropertyOptional({
+    type: Number,
+    default: 20,
+    minimum: 1,
+    maximum: 100,
+    description:
+      'Maximum number of records to return on this page. Default: 20. Choose a whole number from 1 to 100.',
+  })
   @Transform(({ value }: { value: unknown }) => queryInteger(value))
   @IsInt()
   @Min(1)

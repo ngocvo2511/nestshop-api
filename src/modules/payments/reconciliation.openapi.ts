@@ -72,7 +72,8 @@ export const paymentReceiptsSchema = envelope(
       safeDetail: {
         type: 'string',
         nullable: true,
-        description: 'Fixed bounded diagnostic code, never raw provider data',
+        description:
+          'A short code explaining how the notification was handled. Raw provider data is not returned.',
       },
       receivedAt: { type: 'string', format: 'date-time' },
     },
@@ -85,6 +86,11 @@ export const browserReturnSchema = envelope({
   properties: {
     reference: { type: 'string', maxLength: 100 },
     providerResponseCode: { type: 'string', pattern: '^[0-9]{2}$' },
-    settlementAuthoritative: { type: 'boolean', enum: [false] },
+    settlementAuthoritative: {
+      type: 'boolean',
+      enum: [false],
+      description:
+        'Always false. This browser response does not mark the order as paid; use the saved order status after IPN processing.',
+    },
   },
 });

@@ -17,7 +17,7 @@ export const initiationSchema: SchemaObject = {
           type: 'string',
           format: 'uri',
           description:
-            'Sensitive signed Sandbox URL; only this owner response may expose it. Never log or list.',
+            'Open this link in a browser to pay in VNPay Sandbox. It is returned only to the customer who owns the order. Do not share or log this link.',
         },
         attempt: {
           type: 'object',
@@ -30,8 +30,18 @@ export const initiationSchema: SchemaObject = {
             amountVnd: { type: 'string', pattern: '^[1-9][0-9]{0,9}$' },
             currency: { type: 'string', enum: ['VND'] },
             createdAt: { type: 'string', format: 'date-time' },
-            expiresAt: { type: 'string', format: 'date-time' },
-            terminalAt: { type: 'string', nullable: true },
+            expiresAt: {
+              type: 'string',
+              format: 'date-time',
+              description:
+                'Deadline for this payment attempt, in UTC. Passing this time alone does not automatically change PENDING to EXPIRED.',
+            },
+            terminalAt: {
+              type: 'string',
+              nullable: true,
+              description:
+                'When the payment attempt was closed. null means it has not been closed yet.',
+            },
           },
         },
       },

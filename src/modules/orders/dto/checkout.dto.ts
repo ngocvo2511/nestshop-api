@@ -18,7 +18,8 @@ import { ShippingDto } from './shipping.dto';
 export class CheckoutItemDto {
   @ApiProperty({
     format: 'uuid',
-    description: 'UUIDv4 normalized to lowercase; duplicates are rejected.',
+    description:
+      'Product ID in UUID v4 format. Include each product only once in the order.',
   })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.toLowerCase() : value,
@@ -31,7 +32,7 @@ export class CheckoutItemDto {
     minimum: 1,
     maximum: 2147483647,
     description:
-      'JSON integer; no string coercion; additionally bounded by locked available stock.',
+      'Number of units to buy. Send a whole number, such as 2, not a string such as "2". It cannot exceed available stock.',
   })
   @IsInt()
   @Min(1)
@@ -53,7 +54,7 @@ export class CheckoutDto {
   @ApiProperty({
     type: ShippingDto,
     description:
-      'Inline shipping snapshot; no cart/address ID required or accepted.',
+      'Enter the delivery details here. They are saved with this order. Do not send a cart ID or a saved address ID.',
   })
   @IsDefined()
   @IsObject()

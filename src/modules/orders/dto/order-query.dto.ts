@@ -11,13 +11,19 @@ export const orderStatuses = [
   'EXPIRED',
 ];
 export class OrderQueryDto extends PaginationQueryDto {
-  @ApiPropertyOptional({ enum: orderStatuses })
+  @ApiPropertyOptional({
+    enum: orderStatuses,
+    description:
+      'Filter by order status. PENDING_PAYMENT = awaiting payment; PAID = paid; PROCESSING = being prepared; SHIPPED = sent; COMPLETED = finished; CANCELLED = cancelled; EXPIRED = reservation expired. Omit to include all statuses.',
+  })
   @IsOptional()
   @IsIn(orderStatuses)
   status?: string;
   @ApiPropertyOptional({
     enum: ['createdAt', '-createdAt'],
     default: '-createdAt',
+    description:
+      'Use -createdAt for newest orders first (default), or createdAt for oldest first.',
   })
   @IsIn(['createdAt', '-createdAt'])
   sort = '-createdAt';

@@ -39,30 +39,43 @@ export class PaymentsController {
   })
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Owner-only local VNPay Sandbox URL initiation',
+    summary: 'Create a VNPay Sandbox payment link',
     description:
-      'No body or empty JSON object; no query fields. Locks order then payments by ID and rechecks DB wall time. Missing/foreign404; nonpending/overdue409. PENDING attempts always409 PAYMENT_UNRESOLVED until safe provider reuse is verified, even after local target expiry. Only genuine FAILED/EXPIRED predecessors allow replacement. Stored total only, VND decimal string <=9999999999; multiply100 exactly. New attempt201 with reused:false and signed URL. No provider HTTP call or callback settlement; default20-minute target independent of order deadline and not proof of finality. Socket peer IP used; forwarded IP headers ignored.',
+      'Creates a payment link for your unpaid order using the total saved by the server.\n\n- Send no body, or an empty JSON object, and no query parameters.\n- The order must belong to you and its reservation must still be valid.\n- Returns a new payment attempt and paymentUrl. Open paymentUrl in the browser to pay.\n- A payment link lasts 20 minutes by default, separately from the order reservation.\n- If an existing attempt is still PENDING, returns PAYMENT_UNRESOLVED, even if its expiresAt has passed. Only FAILED or EXPIRED attempts can be replaced.\n- Creating a link does not mark the order as paid. A valid VNPay IPN must confirm the payment.',
   })
   @ApiResponse({ status: 201, schema: initiationSchema })
   @ApiResponse({
     status: 400,
-    description: 'VALIDATION_FAILED / MONEY_LIMIT_EXCEEDED',
+    description:
+      'VALIDATION_FAILED: Check the order ID and request format. MONEY_LIMIT_EXCEEDED: The amount exceeds the supported VNPay limit.',
   })
-  @ApiResponse({ status: 401, description: 'UNAUTHORIZED' })
-  @ApiResponse({ status: 403, description: 'CUSTOMER only' })
-  @ApiResponse({ status: 404, description: 'Missing or foreign order' })
+  @ApiResponse({
+    status: 401,
+    description: 'UNAUTHORIZED: Log in and provide a valid access token.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'FORBIDDEN: Only CUSTOMER accounts can create payment links.',
+  })
+  @ApiResponse({
+    status: 404,
+    description:
+      'NOT_FOUND: The order does not exist or belongs to another customer.',
+  })
   @ApiResponse({
     status: 409,
-    description: 'ORDER_NOT_ELIGIBLE / PAYMENT_UNRESOLVED',
+    description:
+      'ORDER_NOT_ELIGIBLE: The order is no longer awaiting payment or its reservation has expired. PAYMENT_UNRESOLVED: An existing payment attempt is awaiting a final result.',
   })
   @ApiResponse({
     status: 503,
     description:
-      'PAYMENT_UNAVAILABLE (configuration/signing) / SERVICE_UNAVAILABLE',
+      'PAYMENT_UNAVAILABLE: VNPay is not configured or a payment link could not be generated. SERVICE_UNAVAILABLE: Try again later.',
   })
   @ApiResponse({
     status: 500,
-    description: 'Safe INTERNAL_ERROR; persistence rolled back',
+    description:
+      'INTERNAL_ERROR: The payment attempt could not be saved; no partial changes were saved.',
   })
   initiate(
     @Req() req: AuthenticatedRequest,

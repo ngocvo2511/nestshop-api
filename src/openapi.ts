@@ -8,7 +8,7 @@ export function configureOpenApi(app: INestApplication): void {
     .setTitle('E-commerce Backend API')
     .setVersion('1.0.0')
     .setDescription(
-      'Accounts, catalog, audited inventory, stock-safe own orders/cancellation and STAFF fulfillment, plus owner-only VNPay Sandbox URL initiation. Verified IPN settlement, non-settling return and read-only Admin reconciliation implemented. Startup/periodic order expiration releases reserved stock once; genuine Sandbox acceptance remains unverified. See Swagger for the implemented API contract.',
+      'API for accounts, products, stock, orders and VNPay Sandbox payments.\n\nLog in to get an accessToken, then use the Authorize button to call protected endpoints. CUSTOMER = customer, STAFF = employee, ADMIN = administrator. Required roles are shown on each endpoint.\n\nAmounts ending in Vnd use whole Vietnamese dong and are returned as strings, such as "350000". Times ending in Z are UTC; add 7 hours for Vietnam time.\n\nFor paginated lists, offset is the number of records to skip, limit is the page size, and total is the count across all matching pages.\n\nA browser return from VNPay does not update payment status. The backend must receive a valid IPN notification. Orders with an unpaid, expired reservation are checked once per minute by default, and their reserved stock is returned.',
     )
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' })
     .build();

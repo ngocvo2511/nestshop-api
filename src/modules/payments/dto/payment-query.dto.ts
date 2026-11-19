@@ -3,11 +3,18 @@ import { IsIn, IsOptional, IsUUID, Matches } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { PaginationQueryDto } from '../../../common/http/dto/pagination-query.dto';
 export class PaymentQueryDto extends PaginationQueryDto {
-  @ApiPropertyOptional({ enum: ['PENDING', 'SUCCESS', 'FAILED', 'EXPIRED'] })
+  @ApiPropertyOptional({
+    enum: ['PENDING', 'SUCCESS', 'FAILED', 'EXPIRED'],
+    description:
+      'PENDING = awaiting a final result; SUCCESS = confirmed payment; FAILED = confirmed failure; EXPIRED = closed after expiry or cancellation. PENDING may remain after the payment link deadline if no final result was received.',
+  })
   @IsOptional()
   @IsIn(['PENDING', 'SUCCESS', 'FAILED', 'EXPIRED'])
   status?: string;
-  @ApiPropertyOptional({ format: 'uuid' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Only include payment attempts for this order ID.',
+  })
   @IsOptional()
   @IsUUID()
   @Transform(({ value }: { value: unknown }) =>
@@ -16,7 +23,8 @@ export class PaymentQueryDto extends PaginationQueryDto {
   orderId?: string;
   @ApiPropertyOptional({
     maxLength: 100,
-    description: 'Exact bounded ASCII reference, parameterized filter',
+    description:
+      'Find a payment by its exact VNPay reference (providerReference). This is different from the order ID. Maximum 100 printable ASCII characters.',
   })
   @IsOptional()
   @Matches(/^[\x20-\x7E]{1,100}$/)

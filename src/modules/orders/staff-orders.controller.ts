@@ -38,22 +38,34 @@ import {
 @ApiBearerAuth()
 @UseGuards(AccessTokenGuard, RolesGuard)
 @Roles('STAFF', 'ADMIN')
-@ApiResponse({ status: 401, description: 'UNAUTHORIZED' })
-@ApiResponse({ status: 403, description: 'STAFF/ADMIN only' })
+@ApiResponse({
+  status: 401,
+  description: 'UNAUTHORIZED: Log in and provide a valid access token.',
+})
+@ApiResponse({
+  status: 403,
+  description:
+    'FORBIDDEN: Only STAFF and ADMIN accounts can use this endpoint.',
+})
 @ApiResponse({
   status: 400,
-  description: 'VALIDATION_FAILED; unknown/protected fields rejected',
+  description:
+    'VALIDATION_FAILED: Check the request fields. Unknown fields are not accepted.',
 })
-@ApiResponse({ status: 503, description: 'SERVICE_UNAVAILABLE' })
+@ApiResponse({
+  status: 503,
+  description:
+    'SERVICE_UNAVAILABLE: The service is temporarily unavailable. Try again later.',
+})
 export class StaffOrdersController {
   constructor(private readonly orders: OrdersService) {}
 
   @Get()
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Shared STAFF/ADMIN fulfillment queue',
+    summary: 'List orders to fulfill (STAFF, ADMIN)',
     description:
-      'status PAID(default)/PROCESSING/SHIPPED/COMPLETED only. Fixed createdAt ASC,id ASC. offset0..1000000 default0; limit1..100 default20. Total uses same status filter; safe payment summaries, no shipping/items/customerId in queue.',
+      'Lists orders ready for staff to handle.\n\n- Filter by status: PAID (paid, the default), PROCESSING (being prepared), SHIPPED (sent to the customer), or COMPLETED (finished).\n- Oldest orders appear first. Orders created at the same time are ordered by ID, ascending.\n- Use offset to skip records and limit to set the page size. The defaults are offset=0 and limit=20.\n- total is the number of orders matching the selected status, across all pages.\n- The list includes payment summaries. Open order details to see the customer ID, delivery details and items.',
   })
   @ApiResponse({ status: 200, schema: orderListSchema })
   list(@Query() query: FulfillmentQueryDto) {
@@ -63,13 +75,13 @@ export class StaffOrdersController {
   @Get(':id')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary:
-      'Fulfillment detail with immutable lines, shipping, customerId and safe payment summaries',
+    summary: 'View an order for fulfillment (STAFF, ADMIN)',
   })
   @ApiResponse({ status: 200, schema: staffOrderDetailSchema })
   @ApiResponse({
     status: 404,
-    description: 'Missing or outside PAID/PROCESSING/SHIPPED/COMPLETED scope',
+    description:
+      'NOT_FOUND: The order does not exist or is not PAID, PROCESSING, SHIPPED or COMPLETED.',
   })
   detail(
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -82,14 +94,15 @@ export class StaffOrdersController {
   @Get(':id/history')
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Fulfillment history; same eligible scope as detail',
+    summary: 'View order status history (STAFF, ADMIN)',
     description:
-      'offset/limit pagination; fixed createdAt ASC,id ASC, USER/SYSTEM attribution.',
+      'Lists status changes from oldest to newest for orders that staff can handle. Changes made at the same time are ordered by ID, ascending. Use offset and limit for pagination. Each entry shows whether a user or the system made the change.',
   })
   @ApiResponse({ status: 200, schema: historySchema })
   @ApiResponse({
     status: 404,
-    description: 'Missing or outside fulfillment scope',
+    description:
+      'NOT_FOUND: The order does not exist or is not available for fulfillment.',
   })
   history(
     @Param('id', new ParseUUIDPipe()) id: string,
@@ -102,19 +115,25 @@ export class StaffOrdersController {
   @HttpCode(200)
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Advance one fulfillment edge atomically with USER history',
+    summary: 'Update order status (STAFF, ADMIN)',
     description:
-      'Only PAID->PROCESSING->SHIPPED->COMPLETED. Order then payments by ID locked; actor from JWT. Optional trimmed safe note1..1000 or null. No payment/stock writes. Repeated/skipped/backward/terminal transition409; pending/cancelled/expired/missing404.',
+      'Move the order forward by one step: PAID (paid) -> PROCESSING (being prepared) -> SHIPPED (sent) -> COMPLETED (finished). You cannot skip steps, go backwards or send the same status again; these requests return 409. You may include a note of 1 to 1000 characters, or null. Each change is saved in the order history. This endpoint does not change stock or payment records.',
   })
   @ApiResponse({ status: 200, schema: orderSummarySchema })
   @ApiResponse({
     status: 404,
-    description: 'Missing or outside fulfillment scope',
+    description:
+      'NOT_FOUND: The order does not exist or is not available for fulfillment.',
   })
-  @ApiResponse({ status: 409, description: 'INVALID_STATE_TRANSITION' })
+  @ApiResponse({
+    status: 409,
+    description:
+      'INVALID_STATE_TRANSITION: Move forward by exactly one step; do not repeat or skip a status.',
+  })
   @ApiResponse({
     status: 500,
-    description: 'Safe INTERNAL_ERROR; order/history rolled back',
+    description:
+      'INTERNAL_ERROR: The status could not be updated; no partial changes were saved.',
   })
   advance(
     @Req() req: AuthenticatedRequest,

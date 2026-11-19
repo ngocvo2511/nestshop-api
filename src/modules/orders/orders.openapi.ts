@@ -4,7 +4,7 @@ const money: SchemaObject = {
   type: 'string',
   pattern: '^[1-9][0-9]{0,18}$',
   description:
-    'Server-calculated integer VND decimal string, <=9223372036854775807; never a JSON number.',
+    'Amount in whole Vietnamese dong, calculated by the server. Returned as a string, for example "350000", to avoid rounding large values. Maximum: 9223372036854775807.',
 };
 export const checkoutSchema: SchemaObject = {
   type: 'object',

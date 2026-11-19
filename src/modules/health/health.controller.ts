@@ -14,7 +14,7 @@ export class HealthController {
   @Get()
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Public process liveness; no database/provider details',
+    summary: 'Check whether the API is running',
   })
   @ApiHeader({
     name: 'X-Correlation-ID',
@@ -45,12 +45,13 @@ export class HealthController {
   })
   @ApiResponse({
     status: 400,
-    description: 'Unknown query/input validation failure',
+    description:
+      'VALIDATION_FAILED: This endpoint does not accept query parameters.',
     schema: { $ref: '#/components/schemas/ErrorEnvelope' },
   })
   @ApiResponse({
     status: 500,
-    description: 'Safe internal error',
+    description: 'INTERNAL_ERROR: The server could not complete the request.',
     schema: { $ref: '#/components/schemas/ErrorEnvelope' },
   })
   getHealth(@Query() query: Record<string, unknown>) {

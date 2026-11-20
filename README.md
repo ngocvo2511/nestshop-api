@@ -2,6 +2,22 @@
 
 NestJS e-commerce backend with TypeORM and PostgreSQL.
 
+## Table of contents
+
+- [Implemented scope](#implemented-scope)
+- [Development](#development)
+- [API behavior](#api-behavior)
+- [Account and catalog management](#account-and-catalog-management)
+- [Initial administrator](#initial-administrator)
+- [Checks](#checks)
+- [Docker Compose](#docker-compose)
+- [VNPay Sandbox configuration](#vnpay-sandbox-configuration)
+- [Expiration and recovery](#expiration-and-recovery)
+- [Remaining scope](#remaining-scope)
+- [Contributions](#contributions)
+- [Quality checks](#quality-checks)
+- [Isolated source verification](#isolated-source-verification)
+
 ## Implemented scope
 
 - Health, validated configuration, safe HTTP handling and PostgreSQL migrations.
@@ -27,6 +43,8 @@ Copy-Item .env.example .env
 ```
 
 Set `DB_PASSWORD`, a generated `JWT_ACCESS_SECRET` of at least 32 characters, and connection settings in the ignored `.env`. The blank examples intentionally fail validation until configured. Use a dedicated PostgreSQL database with an empty public schema for the initial migration.
+
+Start PostgreSQL and create the `DB_USERNAME` role and `DB_DATABASE` database first; migrations create tables, not the database or role. Generate each secret separately with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`. VNPay is optional; leave its four merchant/callback values empty until following the Sandbox section below.
 
 ```powershell
 npm run build
@@ -85,8 +103,23 @@ Integration tests require Docker with Linux containers and use an isolated Postg
 
 Docker with Linux containers and Compose v2.40+ is required. Copy the example and fill independent generated database/JWT secrets in the ignored `.env.compose`.
 
+Copy the example only on first setup. Set `COMPOSE_DB_PASSWORD` and `COMPOSE_JWT_ACCESS_SECRET` (at least 32 characters), generating each as described above. Compose creates the database and role automatically. Host commands use `.env`; Docker commands below use `.env.compose`, so editing `.env` does not update container settings.
+
+Compose also starts ngrok after the API is healthy. Set `NGROK_AUTHTOKEN` and
+`NGROK_DOMAIN` (your assigned domain without `https://`) in `.env.compose`.
+Set `VNPAY_IPN_URL=https://<NGROK_DOMAIN>/api/v1/payments/vnpay/ipn` and register
+that full URL with VNPay when enabling `VNPAY_MODE=sandbox` as described below.
+Leave all four VNPay values empty when using `unconfigured`.
+ngrok forwards directly to `api:3000` on the Compose
+network; no separate host ngrok process is needed. Stop an existing host tunnel
+using the same domain before starting this stack. Check the tunnel with
+`docker compose --env-file .env.compose logs --tail 30 ngrok`.
+To run only the API and database without ngrok, use
+`docker compose --env-file .env.compose up -d --wait api`.
+
 ```powershell
 Copy-Item .env.compose.example .env.compose
+# Fill .env.compose before running the following commands.
 docker compose --env-file .env.compose build api
 docker compose --env-file .env.compose up -d --wait
 docker compose --env-file .env.compose exec -T api npm run seed
@@ -94,13 +127,27 @@ docker compose --env-file .env.compose exec -T api npm run seed
 
 The API is published on `http://127.0.0.1:3300`; PostgreSQL is private to the Compose network. A healthy database and successful one-shot migration gate API startup. The application runs as the `node` user, with persistent database and upload volumes. Use a fresh `-p <project-name>` if the default project already exists.
 
+Health: `http://127.0.0.1:3300/api/v1/health`; Swagger: `http://127.0.0.1:3300/api/docs`. If you change `COMPOSE_API_PORT`, use that port instead. For initial admin setup, set `$env:INITIAL_ADMIN_EMAIL` and `$env:INITIAL_ADMIN_PASSWORD` in PowerShell, then run `docker compose --env-file .env.compose exec -T -e INITIAL_ADMIN_EMAIL -e INITIAL_ADMIN_PASSWORD api npm run admin:setup`; remove both local variables afterward with `Remove-Item Env:INITIAL_ADMIN_EMAIL, Env:INITIAL_ADMIN_PASSWORD`.
+
+After changing `.env.compose`, run `docker compose --env-file .env.compose up -d` to recreate affected services; `restart` does not reload environment values. After source changes, build the API again before starting it.
+
 `docker compose --env-file .env.compose down` retains data. Do not add `--volumes` to routine shutdown. Changing the environment password does not rotate credentials in an existing database volume.
 
 `npm run verify:compose` verifies image build, readiness, repeated migration/seed/admin commands and database/upload persistence using its own disposable project.
 
 ## VNPay Sandbox configuration
 
-Keep `VNPAY_MODE=unconfigured` unless using assigned Sandbox settings. Configure `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `VNPAY_RETURN_URL` and `VNPAY_IPN_URL` in the ignored `.env` or `.env.compose`; keep credentials and signed payment URLs out of logs and version control. Supported settings are API 2.1.0, locale `vn` or `en`, and timezone `Asia/Ho_Chi_Minh`. The IPN URL must be registered with the merchant; generating a signed URL makes no outbound provider request.
+Without VNPay, keep `VNPAY_MODE=unconfigured` and leave `VNPAY_TMN_CODE`, `VNPAY_HASH_SECRET`, `VNPAY_RETURN_URL` and `VNPAY_IPN_URL` empty. Supplying any of those four values while still using `unconfigured` fails startup validation.
+
+To enable Sandbox, edit `.env` for `npm run dev`, or `.env.compose` for Docker:
+
+1. Set `VNPAY_MODE=sandbox` and fill **all four** values below.
+2. Use the assigned Sandbox `VNPAY_TMN_CODE` (8 alphanumeric characters) and `VNPAY_HASH_SECRET`.
+3. Set `VNPAY_RETURN_URL` to the browser destination. The backend callback is `http://localhost:3000/api/v1/payments/vnpay/return` for host development, or `http://localhost:3300/api/v1/payments/vnpay/return` for default Compose. Use `https://<NGROK_DOMAIN>/api/v1/payments/vnpay/return` when testing from another device. A frontend URL is also valid if that frontend implements the return page.
+4. Set `VNPAY_IPN_URL=https://<NGROK_DOMAIN>/api/v1/payments/vnpay/ipn` and register that exact URL with the Sandbox merchant. This must point to your API, not VNPay's payment page. Keep the API and tunnel running during payment and callback delivery.
+5. Restart the host app, or run `docker compose --env-file .env.compose up -d` for Docker. Generate a new payment attempt to use the updated Return URL.
+
+Both callback URLs require HTTPS, except Return URL also accepts HTTP on localhost/loopback. Do not include query strings or fragments; Return URL is limited to 255 characters. Supported settings are API 2.1.0, locale `vn` or `en`, and timezone `Asia/Ho_Chi_Minh`. Keep credentials and signed payment URLs out of logs and version control. Generating a signed URL makes no outbound provider request.
 
 `POST /api/v1/orders/:id/payment-attempts` accepts an empty body for an eligible CUSTOMER-owned order. Prices and amounts come from persisted data. An unresolved PENDING attempt conflicts even after its local target time; safe URL reuse and provider finality are not assumed.
 

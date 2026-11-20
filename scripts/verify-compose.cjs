@@ -95,7 +95,15 @@ async function main() {
   try {
     await docker([...args, 'build']);
     console.log('Starting PostgreSQL, migration gate and API readiness checks');
-    await docker([...args, 'up', '-d', '--wait', '--wait-timeout', '180']);
+    await docker([
+      ...args,
+      'up',
+      '-d',
+      '--wait',
+      '--wait-timeout',
+      '180',
+      'api',
+    ]);
     const response = await fetch(
       `http://127.0.0.1:${env.COMPOSE_API_PORT}/api/v1/health`,
       {
@@ -158,7 +166,15 @@ async function main() {
       'Recreating only this verification project containers to check DB/upload persistence',
     );
     await docker([...args, 'rm', '--force', '--stop', 'api', 'postgres']);
-    await docker([...args, 'up', '-d', '--wait', '--wait-timeout', '180']);
+    await docker([
+      ...args,
+      'up',
+      '-d',
+      '--wait',
+      '--wait-timeout',
+      '180',
+      'api',
+    ]);
     const contents = await docker([
       ...args,
       'exec',

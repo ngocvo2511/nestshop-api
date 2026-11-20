@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
+import { afterAll, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { randomBytes, randomUUID } from 'node:crypto';
 import {
   configureHttp,
@@ -60,11 +61,17 @@ describe('catalog HTTP validation, routing and roles', () => {
   let access: AccessTokenService;
   const id = randomUUID();
   const list = jest
-    .fn()
+    .fn<ProductsService['list']>()
     .mockResolvedValue({ items: [], offset: 0, limit: 20, total: 0 });
-  const detail = jest.fn().mockResolvedValue({ id });
-  const create = jest.fn().mockResolvedValue({ id });
-  const update = jest.fn().mockResolvedValue({ id });
+  const detail = jest
+    .fn<() => Promise<{ id: string }>>()
+    .mockResolvedValue({ id });
+  const create = jest
+    .fn<() => Promise<{ id: string }>>()
+    .mockResolvedValue({ id });
+  const update = jest
+    .fn<() => Promise<{ id: string }>>()
+    .mockResolvedValue({ id });
   const config = {
     jwt: {
       accessSecret: randomBytes(32).toString('hex'),

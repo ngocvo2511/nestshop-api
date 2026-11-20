@@ -1,6 +1,6 @@
 // Coverage-only real HTTP application. No repository/domain mocks or fake database.
 const { Test } = require('@nestjs/testing');
-const { ConfigService } = require('@nestjs/config');
+const { ConfigModule, ConfigService } = require('@nestjs/config');
 const { rmSync } = require('node:fs');
 const { basename, dirname, resolve } = require('node:path');
 const { tmpdir } = require('node:os');
@@ -25,16 +25,21 @@ async function startInProcess(env, cwd) {
     output += line + '\n';
   });
   const config = validateEnvironment(env);
-  // AppModule validates env at first import; each instance receives its own validated ConfigService.
-  const previous = { ...process.env };
+  // AppModule initializes configuration at first import. Use the validated fixture
+  // here too, so the host environment and repository .env cannot enter coverage.
+  const originalForRoot = ConfigModule.forRoot;
   let AppModule;
   try {
-    Object.assign(process.env, env);
+    ConfigModule.forRoot = function (options) {
+      return originalForRoot.call(this, {
+        ...options,
+        ignoreEnvFile: true,
+        validate: () => config,
+      });
+    };
     ({ AppModule } = require('../../dist/app.module'));
   } finally {
-    for (const key of Object.keys(process.env))
-      if (!(key in previous)) delete process.env[key];
-    Object.assign(process.env, previous);
+    ConfigModule.forRoot = originalForRoot;
   }
   let app;
   const close = async () => {
@@ -65,9 +70,9 @@ async function startInProcess(env, cwd) {
       output: () => output,
       env,
     };
-  } catch {
+  } catch (error) {
     await close();
-    throw new Error('Application exited before readiness');
+    throw new Error('Application exited before readiness', { cause: error });
   }
 }
 module.exports = { startInProcess };

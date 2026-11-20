@@ -71,6 +71,16 @@ services:
       retries: 12
       start_period: 15s
 
+  ngrok:
+    image: ngrok/ngrok:latest
+    command: ['http', 'api:3000', '--url=${NGROK_DOMAIN:-}', '--log=stdout']
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres-data:
   uploads:

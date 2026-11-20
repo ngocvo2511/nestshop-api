@@ -2,6 +2,22 @@
 
 NestJS e-commerce backend with TypeORM and PostgreSQL.
 
+## Table of contents
+
+- [Implemented scope](#implemented-scope)
+- [Development](#development)
+- [API behavior](#api-behavior)
+- [Account and catalog management](#account-and-catalog-management)
+- [Initial administrator](#initial-administrator)
+- [Checks](#checks)
+- [Docker Compose](#docker-compose)
+- [VNPay Sandbox configuration](#vnpay-sandbox-configuration)
+- [Expiration and recovery](#expiration-and-recovery)
+- [Remaining scope](#remaining-scope)
+- [Contributions](#contributions)
+- [Quality checks](#quality-checks)
+- [Isolated source verification](#isolated-source-verification)
+
 ## Implemented scope
 
 - Health, validated configuration, safe HTTP handling and PostgreSQL migrations.
